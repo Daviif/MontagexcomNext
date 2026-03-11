@@ -22,7 +22,19 @@ export const useCurrency = () => {
 export const useDate = () => {
   const formatDate = useCallback((date, format = 'dd/MM/yyyy') => {
     if (!date) return ''
-    const d = new Date(date)
+
+    let d
+
+    // DATEONLY deve ser interpretado em horário local para evitar dia -1 por fuso.
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [year, month, day] = date.split('-').map(Number)
+      d = new Date(year, month - 1, day)
+    } else {
+      d = new Date(date)
+    }
+
+    if (Number.isNaN(d.getTime())) return ''
+
     const year = d.getFullYear()
     const month = String(d.getMonth() + 1).padStart(2, '0')
     const day = String(d.getDate()).padStart(2, '0')

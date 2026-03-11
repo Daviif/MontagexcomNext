@@ -267,10 +267,13 @@ const Rotas = () => {
   const handleNovaRota = () => {
     if (!isAdmin) return
 
+    const now = new Date()
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
     setIsEditMode(false)
     setRotaToEdit(null)
     setRotaForm({
-      data: new Date().toISOString().split('T')[0],
+      data: localToday,
       equipe_id: '',
       horario_inicio: '08:00',
       horario_fim: '18:00',
@@ -434,6 +437,8 @@ const Rotas = () => {
     event.preventDefault()
 
     try {
+      const servicosUnicos = [...new Set((rotaForm.servicos || []).filter(Boolean))]
+
       if (isEditMode && rotaToEdit) {
         // Atualizar rota existente
         await api.put(`/rotas/${rotaToEdit.id}`, {
@@ -445,16 +450,26 @@ const Rotas = () => {
         })
 
         // Deletar todos os RotaServicos antigos
-        const rotaServicos = rotaServicosMap[rotaToEdit.id] || []
+        let rotaServicos = rotaServicosMap[rotaToEdit.id] || []
+
+        // Fallback: se o cache local ainda não carregou, busca no backend
+        // para evitar conflito 409 ao recriar vínculos já existentes.
+        if (rotaServicos.length === 0) {
+          const rotaServicosResponse = await api.get('/rota_servicos', {
+            params: { rota_id: rotaToEdit.id }
+          })
+          rotaServicos = Array.isArray(rotaServicosResponse.data) ? rotaServicosResponse.data : []
+        }
+
         for (const rs of rotaServicos) {
           await api.delete(`/rota_servicos/${rs.id}`)
         }
 
         // Criar novos RotaServicos
-        for (let i = 0; i < rotaForm.servicos.length; i++) {
+        for (let i = 0; i < servicosUnicos.length; i++) {
           await api.post('/rota_servicos', {
             rota_id: rotaToEdit.id,
-            servico_id: rotaForm.servicos[i],
+            servico_id: servicosUnicos[i],
             ordem: i + 1
           })
         }
@@ -471,10 +486,10 @@ const Rotas = () => {
         const rotaId = rotaResponse.data.id
 
         // Criar RotaServicos
-        for (let i = 0; i < rotaForm.servicos.length; i++) {
+        for (let i = 0; i < servicosUnicos.length; i++) {
           await api.post('/rota_servicos', {
             rota_id: rotaId,
-            servico_id: rotaForm.servicos[i],
+            servico_id: servicosUnicos[i],
             ordem: i + 1
           })
         }
@@ -1151,8 +1166,14 @@ const Rotas = () => {
                 // Próximo serviço é sempre o primeiro da lista (já ordenado)
                 const proximoServico = proximosServicos[0]
 
+                // Prioriza o endereço textual para manter consistência com o serviço exibido na lista.
+                // Se o endereço estiver vazio, usa coordenadas como fallback.
+                const destinoMapa = proximoServico.endereco?.trim()
+                  ? encodeURIComponent(proximoServico.endereco)
+                  : `${proximoServico.lat},${proximoServico.lng}`
+
                 // URL do Google Maps - apenas origem → próximo serviço
-                const googleMapsUrl = `https://www.google.com/maps/dir/${currentLocation.lat},${currentLocation.lng}/${proximoServico.lat},${proximoServico.lng}`
+                const googleMapsUrl = `https://www.google.com/maps/dir/${currentLocation.lat},${currentLocation.lng}/${destinoMapa}`
 
                 return (
                   <div className="rotas__map-content">
@@ -1189,7 +1210,7 @@ const Rotas = () => {
                         loading="lazy"
                         allowFullScreen
                         referrerPolicy="no-referrer-when-downgrade"
-                        src={`https://www.google.com/maps/embed/v1/directions?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&origin=${currentLocation.lat},${currentLocation.lng}&destination=${proximoServico.lat},${proximoServico.lng}&language=pt-BR`}
+                        src={`https://www.google.com/maps/embed/v1/directions?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&origin=${currentLocation.lat},${currentLocation.lng}&destination=${destinoMapa}&language=pt-BR`}
                       ></iframe>
                     </div>
 
