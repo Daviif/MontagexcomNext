@@ -6,21 +6,36 @@ const compression = require('compression');
 const path = require('path');
 
 const apiRoutes = require('./routes');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 
 app.use(helmet());
 
 const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim().replace(/\/$/, ''))
   : ['http://localhost:5173', 'http://localhost:4173'];
+
+const isAllowedNetlifyPreviewOrigin = (origin) => {
+  if (!origin) {
+    return false;
+  }
+
+  return /^https:\/\/[a-z0-9-]+--montagex\.netlify\.app$/i.test(origin);
+};
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    const normalizedOrigin = origin ? origin.replace(/\/$/, '') : origin;
+    if (
+      !normalizedOrigin ||
+      allowedOrigins.includes('*') ||
+      allowedOrigins.includes(normalizedOrigin) ||
+      isAllowedNetlifyPreviewOrigin(normalizedOrigin)
+    ) {
       callback(null, true);
     } else {
-      callback(new Error(`CORS bloqueado para origem: ${origin}`));
+      callback(new Error(`CORS bloqueado para origem: ${normalizedOrigin}`));
     }
   },
   credentials: true
@@ -32,6 +47,9 @@ app.use(morgan('dev'));
 
 // Servir uploads estaticamente
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Compatibilidade: permite login em clientes apontando para /auth sem /api
+app.use('/auth', authRoutes);
 
 app.use('/api', apiRoutes);
 
