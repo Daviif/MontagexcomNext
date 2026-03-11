@@ -191,9 +191,3 @@ body.mobile-nav-open {
   animation: fadeIn 0.3s ease-in-out;
 }
 
-/* Responsividade */
-@media (max-width: 768px) {
-  :root {
-    --sidebar-width: 0;
-  }
-}

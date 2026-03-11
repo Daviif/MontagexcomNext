@@ -2,6 +2,7 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { 
   MdClose,
+  MdLogout,
   MdDashboard, 
   MdConstruction, 
   MdPeople, 
@@ -66,7 +67,12 @@ const Sidebar = ({
   onNavigate,
   onClose
 }) => {
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
+
+  const handleSignOut = () => {
+    onClose?.()
+    signOut()
+  }
 
   const getConnectionStatus = () => {
     if (isOffline) {
@@ -165,6 +171,15 @@ const Sidebar = ({
             </div>
           </div>
         </NavLink>
+
+        <button
+          type="button"
+          className="sidebar-logout-btn"
+          onClick={handleSignOut}
+        >
+          <MdLogout className="sidebar-logout-icon" />
+          <span>Sair</span>
+        </button>
       </div>
     </aside>
   )

@@ -115,14 +115,15 @@ const Servicos = () => {
       return 0;
     }
 
-    const subtotal = getProdutoSubtotal(produto);
-    return Math.min(Math.max(parseNumericValue(produto.valor_desconto), 0), subtotal);
-  }, [getProdutoSubtotal]);
+    const unitario = parseNumericValue(produto.valor_unitario);
+    return Math.min(Math.max(parseNumericValue(produto.valor_desconto), 0), unitario);
+  }, []);
 
   const getProdutoTotal = useCallback((produto) => {
-    const total = getProdutoSubtotal(produto) - getProdutoDiscount(produto);
-    return Number(Math.max(total, 0).toFixed(2));
-  }, [getProdutoDiscount, getProdutoSubtotal]);
+    const unitarioComDesconto = Math.max(parseNumericValue(produto.valor_unitario) - getProdutoDiscount(produto), 0);
+    const total = parseNumericValue(produto.quantidade) * unitarioComDesconto;
+    return Number(total.toFixed(2));
+  }, [getProdutoDiscount]);
 
   // Memoized maps for fast lookups
   const lojasById = useMemo(() => {
