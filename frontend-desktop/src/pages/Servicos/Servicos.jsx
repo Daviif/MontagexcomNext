@@ -23,6 +23,12 @@ const createEmptyProdutoItem = () => ({
   valor_desconto: 0
 });
 
+const createEmptyExtraItem = () => ({
+  descricao: '',
+  valor: 0,
+  observacao: ''
+});
+
 const parseNumericValue = (value) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
@@ -55,6 +61,7 @@ const Servicos = () => {
   const { data: usuarios, loading: usuariosLoading } = useApi('/usuarios');
   const { data: produtos, loading: produtosLoading } = useApi('/produtos');
   const { data: servicoProdutos, loading: servicoProdutosLoading, refetch: refetchServicoProdutos } = useApi('/servico_produtos');
+  const { data: servicoExtras, refetch: refetchServicoExtras } = useApi('/servico_extras');
   const { data: servicoMontadores, loading: servicoMontadoresLoading, refetch: refetchServicoMontadores } = useApi('/servico_montadores');
   const { data: equipeMembros, loading: equipeMembrosLoading } = useApi('/equipe_membros');
   const { data: rotaServicos, loading: rotaServicosLoading } = useApi('/rota_servicos');
@@ -71,6 +78,7 @@ const Servicos = () => {
   const [anexoToDelete, setAnexoToDelete] = useState(null);
   const [notice, setNotice] = useState(null);
   const [tabProdutos, setTabProdutos] = useState([]);
+  const [tabExtras, setTabExtras] = useState([]);
   const [tabMontadores, setTabMontadores] = useState([]);
   const [searchProduto, setSearchProduto] = useState('');
   const [categoriaProduto, setCategoriaProduto] = useState('');
@@ -342,6 +350,12 @@ const Servicos = () => {
     return servicoMontadores.filter(sm => sm.servico_id === servicoId);
   }, [servicoMontadores]);
 
+  // Get servico extras
+  const getServicoExtras = useCallback((servicoId) => {
+    if (!servicoExtras) return [];
+    return servicoExtras.filter(se => se.servico_id === servicoId);
+  }, [servicoExtras]);
+
   // Open edit modal
   const handleEdit = useCallback((servico) => {
     const enderecoParts = (servico.endereco_execucao || '').split(',').map(part => part.trim());
@@ -386,6 +400,12 @@ const Servicos = () => {
       })
     );
     setTabMontadores(montadores);
+    setTabExtras(
+      getServicoExtras(servico.id).map(item => ({
+        ...item,
+        valor: parseNumericValue(item.valor)
+      }))
+    );
     
     // Detectar tipo de atribuição
     if (montadores && montadores.length > 0) {
@@ -406,7 +426,7 @@ const Servicos = () => {
     setEditingId(servico.id);
     carregarAnexos(servico.id);
     setShowModal(true);
-  }, [buildEquipeMontadores, getServicoProdutos, getServicoMontadores]);
+  }, [buildEquipeMontadores, getServicoProdutos, getServicoMontadores, getServicoExtras]);
 
   // Duplicate existing service into a new draft
   const handleDuplicate = useCallback((servico) => {
@@ -474,9 +494,15 @@ const Servicos = () => {
 
     setAnexos([]);
     setEditingId(null);
+    setTabExtras(
+      getServicoExtras(servico.id).map(item => ({
+        ...item,
+        valor: parseNumericValue(item.valor)
+      }))
+    );
     setShowModal(true);
     showNotice('success', 'Serviço duplicado. Revise os dados e salve para criar a nova OS.');
-  }, [buildEquipeMontadores, getServicoMontadores, getServicoProdutos, showNotice]);
+  }, [buildEquipeMontadores, getServicoMontadores, getServicoProdutos, getServicoExtras, showNotice]);
 
   // Create new
   const handleNew = useCallback(() => {
@@ -503,6 +529,7 @@ const Servicos = () => {
       codigo_os_loja: ''
     });
     setTabProdutos([]);
+    setTabExtras([]);
     setTabMontadores([]);
     setTipoAtribuicao('individual');
     setEquipeSelecionada('');
@@ -689,6 +716,11 @@ const Servicos = () => {
         (acc, produto) => acc + getProdutoTotal(produto),
         0
       );
+      const totalExtras = tabExtras.reduce(
+        (acc, extra) => acc + parseNumericValue(extra.valor),
+        0
+      );
+      const totalGeral = totalProdutos + totalExtras;
       const lojaSelecionada = formData.tipo_cliente === 'loja' ? lojasById[formData.loja_id] : null;
       const repasseBase = lojaSelecionada?.usa_porcentagem
         && lojaSelecionada?.porcentagem_repasse != null
@@ -704,7 +736,7 @@ const Servicos = () => {
             endereco_execucao: buildEnderecoExecucao(formData, { includeBairro: false }),
             latitude: formData.latitude || null,
             longitude: formData.longitude || null,
-        valor_total: Number(totalProdutos.toFixed(2)),
+        valor_total: Number(totalGeral.toFixed(2)),
         valor_repasse_montagem: Number(repasseBase.toFixed(2)),
             prioridade: formData.prioridade || 0,
             janela_inicio: formData.janela_inicio || null,
@@ -826,12 +858,32 @@ const Servicos = () => {
         if (montadoresPayload.length > 0) {
           await Promise.all(montadoresPayload.map((payload) => api.post('/servico_montadores', payload)));
         }
+
+        // Salvar extras
+        const existingExtras = await api.get(`/servico_extras?servico_id=${servicoId}`);
+        await Promise.all(
+          (existingExtras.data || []).map((item) => api.delete(`/servico_extras/${item.id}`))
+        );
+
+        const extrasPayload = tabExtras
+          .filter(extra => extra.descricao && extra.descricao.trim())
+          .map(extra => ({
+            servico_id: servicoId,
+            descricao: extra.descricao.trim(),
+            valor: Number(extra.valor || 0),
+            observacao: extra.observacao || null
+          }));
+
+        if (extrasPayload.length > 0) {
+          await Promise.all(extrasPayload.map(payload => api.post('/servico_extras', payload)));
+        }
       }
 
       setShowModal(false);
       refetchServicos();
       refetchServicoProdutos();
       refetchServicoMontadores();
+      refetchServicoExtras();
       showNotice('success', editingId ? 'Serviço atualizado com sucesso.' : 'Serviço criado com sucesso.');
     } catch (err) {
       showNotice('error', 'Erro ao salvar serviço: ' + err.message);
@@ -919,6 +971,23 @@ const Servicos = () => {
     const updated = [...tabMontadores];
     updated[idx][field] = value;
     setTabMontadores(updated);
+  };
+
+  // Add extra
+  const handleAddExtra = () => {
+    setTabExtras([...tabExtras, createEmptyExtraItem()]);
+  };
+
+  // Remove extra
+  const handleRemoveExtra = (idx) => {
+    setTabExtras(tabExtras.filter((_, i) => i !== idx));
+  };
+
+  // Update extra
+  const handleUpdateExtra = (idx, field, value) => {
+    const updated = [...tabExtras];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setTabExtras(updated);
   };
 
   // Anexos
@@ -1688,7 +1757,86 @@ const Servicos = () => {
                 )}
               </div>
 
-              {/* 7. Observações */}
+              {/* 7. Utilitários / Extras */}
+              <div className="servicos__form-section">
+                <h3 className="servicos__section-title">Utilitários / Extras</h3>
+                <p className="servicos__section-desc" style={{ marginBottom: '12px', color: '#666', fontSize: '0.875rem' }}>
+                  Custos adicionais fora da montagem (ex: gasolina, parafusos, embalagens).
+                </p>
+
+                {tabExtras.length > 0 ? (
+                  <div className="servicos__produtos-table-wrapper">
+                    <table className="servicos__produtos-table">
+                      <thead>
+                        <tr>
+                          <th>Descrição</th>
+                          <th>Valor (R$)</th>
+                          <th>Observação</th>
+                          <th>Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tabExtras.map((extra, idx) => (
+                          <tr key={idx}>
+                            <td>
+                              <input
+                                type="text"
+                                value={extra.descricao}
+                                onChange={(e) => handleUpdateExtra(idx, 'descricao', e.target.value)}
+                                placeholder="Ex: Gasolina, Parafusos..."
+                                className="servicos__produto-select"
+                                maxLength={200}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={extra.valor}
+                                onChange={(e) => handleUpdateExtra(idx, 'valor', parseNumericValue(e.target.value))}
+                                className="servicos__produto-qty"
+                                style={{ width: '100px' }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                value={extra.observacao || ''}
+                                onChange={(e) => handleUpdateExtra(idx, 'observacao', e.target.value)}
+                                placeholder="Opcional..."
+                                className="servicos__produto-select"
+                              />
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="servicos__remove-btn"
+                                onClick={() => handleRemoveExtra(idx)}
+                                aria-label="Remover extra"
+                              >
+                                <MdDelete size={18} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="servicos__no-items">Nenhum extra adicionado.</p>
+                )}
+
+                <button
+                  type="button"
+                  className="servicos__btn-add-item"
+                  onClick={handleAddExtra}
+                >
+                  <MdAdd size={18} /> Adicionar Extra
+                </button>
+              </div>
+
+              {/* 8. Observações */}
               <div className="servicos__form-group servicos__form-group--full">
                 <label htmlFor="observacoes">Observações</label>
                 <textarea

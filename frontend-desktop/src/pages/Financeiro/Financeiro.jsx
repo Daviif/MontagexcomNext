@@ -7,12 +7,14 @@ import {
   MdDownload,
   MdEdit,
   MdPayments,
+  MdPrint,
   MdReceiptLong,
   MdSearch,
   MdExpandMore,
   MdChevronRight,
   MdUploadFile
 } from 'react-icons/md'
+
 import Card from '../../components/Card/Card'
 import { useAuth } from '../../contexts/AuthContext'
 import { useApi } from '../../hooks/useApi'
@@ -56,6 +58,11 @@ const INITIAL_DIALOG_STATE = {
   onConfirm: null
 }
 
+const INITIAL_RECIBO_ASSINATURA = {
+  assinaturaResponsavel: '',
+  cpfCnpj: ''
+}
+
 const Financeiro = () => {
   const [activeTab, setActiveTab] = useState('salarios')
   const [searchTerm, setSearchTerm] = useState('')
@@ -74,6 +81,9 @@ const Financeiro = () => {
   const [expandedPagamentosLojas, setExpandedPagamentosLojas] = useState(() => new Set())
   const [showOnlyPendingSugestoes, setShowOnlyPendingSugestoes] = useState(false)
   const [editingRecebimentoGrupo, setEditingRecebimentoGrupo] = useState(null)
+  const [reciboGrupo, setReciboGrupo] = useState(null)
+  const [reciboAssinatura, setReciboAssinatura] = useState(INITIAL_RECIBO_ASSINATURA)
+  const [reciboMostrarOs, setReciboMostrarOs] = useState(true)
   const [baixaPagamentoContext, setBaixaPagamentoContext] = useState(null)
   const [isComprovantesModalOpen, setIsComprovantesModalOpen] = useState(false)
   const [comprovantesContext, setComprovantesContext] = useState(null)
@@ -147,6 +157,8 @@ const Financeiro = () => {
   } = useApi('/pagamentos_funcionarios', 'GET', [])
   const { data: usuariosData } = useApi('/usuarios', 'GET', [])
   const { data: servicosData } = useApi('/servicos', 'GET', [])
+  const { data: produtosData } = useApi('/produtos', 'GET', [])
+  const { data: servicoProdutosData } = useApi('/servico_produtos', 'GET', [])
   const { data: servicoMontadoresData } = useApi('/servico_montadores', 'GET', [])
   const { data: equipeMembrosData } = useApi('/equipe_membros', 'GET', [])
   const { data: lojasData } = useApi('/lojas', 'GET', [])
@@ -256,6 +268,38 @@ const Financeiro = () => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
+
+  const handleOpenRecibo = useCallback((grupo) => {
+    setReciboGrupo(grupo)
+    setReciboAssinatura(INITIAL_RECIBO_ASSINATURA)
+    setReciboMostrarOs(true)
+  }, [])
+
+  const handleCloseRecibo = useCallback(() => {
+    setReciboGrupo(null)
+    setReciboAssinatura(INITIAL_RECIBO_ASSINATURA)
+    setReciboMostrarOs(true)
+  }, [])
+
+  const reciboValorTotal = useMemo(() => {
+    if (!reciboGrupo) return 0
+    const valorRecebido = Number(reciboGrupo.totalRecebido || 0)
+    const valorPrevisto = Number(reciboGrupo.totalPrevisto || 0)
+    return valorRecebido > 0 ? valorRecebido : valorPrevisto
+  }, [reciboGrupo])
+
+  const reciboOsResumo = useMemo(() => {
+    if (!reciboGrupo) return '-'
+    const osList = (reciboGrupo.detalhesOs || [])
+      .map((os) => os.numeroOS)
+      .filter(Boolean)
+    return osList.length > 0 ? osList.join(', ') : '-'
+  }, [reciboGrupo])
+
+  const reciboRazaoSocial = useMemo(() => {
+    if (!reciboGrupo) return '-'
+    return reciboGrupo.razaoSocial || reciboGrupo.razao_social || reciboGrupo.clienteNome || 'Cliente'
+  }, [reciboGrupo])
 
   const handleOpenBulkBaixaModal = () => {
     setBulkBaixaForm({ data_pagamento: getTodayDateOnly(), forma_pagamento: '', observacoes: '' })
@@ -368,6 +412,25 @@ const Financeiro = () => {
       return acc
     }, {})
   }, [servicosData])
+
+  const produtosMap = useMemo(() => {
+    return (produtosData || []).reduce((acc, produto) => {
+      acc[produto.id] = produto
+      return acc
+    }, {})
+  }, [produtosData])
+
+  const servicoProdutosPorServico = useMemo(() => {
+    const map = {}
+    ;(Array.isArray(servicoProdutosData) ? servicoProdutosData : []).forEach((item) => {
+      if (!item?.servico_id) return
+      if (!map[item.servico_id]) {
+        map[item.servico_id] = []
+      }
+      map[item.servico_id].push(item)
+    })
+    return map
+  }, [servicoProdutosData])
 
   const lojasMap = useMemo(() => {
     return (lojasData || []).reduce((acc, loja) => {
@@ -519,17 +582,21 @@ const Financeiro = () => {
 
     servicosConcluidos.forEach((servico) => {
       const isLoja = servico.tipo_cliente === 'loja' && servico.loja_id
+      const loja = isLoja ? lojasMap[servico.loja_id] : null
       const clienteKey = isLoja
         ? `loja:${servico.loja_id}`
         : `particular:${servico.cliente_particular_id || 'sem-id'}`
       const clienteNome = isLoja
-        ? (lojasMap[servico.loja_id]?.nome || lojasMap[servico.loja_id]?.nome_fantasia || 'Loja')
+        ? (loja?.razao_social || loja?.nome || loja?.nome_fantasia || 'Loja')
         : (particularesMap[servico.cliente_particular_id]?.nome || 'Cliente Particular')
 
       if (!grupos.has(clienteKey)) {
         grupos.set(clienteKey, {
           clienteKey,
           clienteNome,
+          razaoSocial: isLoja
+            ? (loja?.razao_social || loja?.nome || loja?.nome_fantasia || 'Loja')
+            : clienteNome,
           tipoCliente: isLoja ? 'loja' : 'particular',
           servicos: []
         })
@@ -541,23 +608,49 @@ const Financeiro = () => {
     const lista = Array.from(grupos.values()).map((grupo) => {
       const detalhesOs = grupo.servicos.map((servico) => {
         const registros = recebimentosPorServico[servico.id] || []
-        const registro = registros[0] || null
+        const registro = registros[registros.length - 1] || null
+        const itensMontados = (servicoProdutosPorServico[servico.id] || []).map((item, index) => {
+          const quantidade = Number(item.quantidade || 0)
+          const valorUnitario = Number(item.valor_unitario || 0)
+          const valorDesconto = Number(item.valor_desconto || 0)
+          const subtotal = quantidade * valorUnitario
+          const valorItem = Number(item.valor_total ?? Math.max(subtotal - valorDesconto, 0))
+          const produto = produtosMap[item.produto_id]
+
+          return {
+            id: item.id || `${servico.id}-${item.produto_id || 'produto'}-${index}`,
+            descricao: produto?.nome || 'Item sem descrição',
+            quantidade,
+            valorUnitario,
+            valorItem
+          }
+        })
+
         const valorRecebidoServico = registros.reduce((sum, item) => {
           if (!['recebido', 'parcial'].includes(item.status)) return sum
           return sum + Number(item.valor || 0)
         }, 0)
 
+        const valorTotalServico = Number(servico.valor_total || 0)
+        let statusServico = 'pendente'
+        if (valorRecebidoServico > 0 && valorRecebidoServico + 0.01 < valorTotalServico) {
+          statusServico = 'parcial'
+        } else if (valorTotalServico > 0 && valorRecebidoServico + 0.01 >= valorTotalServico) {
+          statusServico = 'recebido'
+        }
+
         return {
           servicoId: servico.id,
           numeroOS: servico.codigo_os_loja || servico.codigo_servico || servico.id?.slice(0, 8),
-          valorTotal: Number(servico.valor_total || 0),
+          valorTotal: valorTotalServico,
           valorRecebido: valorRecebidoServico,
-          saldo: Math.max(Number(servico.valor_total || 0) - valorRecebidoServico, 0),
-          status: registro?.status || (valorRecebidoServico > 0 ? 'parcial' : 'pendente'),
+          saldo: Math.max(valorTotalServico - valorRecebidoServico, 0),
+          status: statusServico,
           dataPrevista: registro?.data_prevista || '',
           dataRecebimento: registro?.data_recebimento || '',
           formaPagamento: registro?.forma_pagamento || '',
-          observacoes: registro?.observacoes || ''
+          observacoes: registro?.observacoes || '',
+          itensMontados
         }
       })
 
@@ -605,7 +698,15 @@ const Financeiro = () => {
         .toLowerCase()
       return values.includes(searchNormalized)
     })
-  }, [servicosData, lojasMap, particularesMap, recebimentosPorServico, searchNormalized])
+  }, [
+    servicosData,
+    lojasMap,
+    particularesMap,
+    recebimentosPorServico,
+    searchNormalized,
+    servicoProdutosPorServico,
+    produtosMap
+  ])
 
   const despesasList = useMemo(() => {
     const list = Array.isArray(despesasData) ? despesasData : []
@@ -1160,18 +1261,20 @@ const Financeiro = () => {
   }
 
   const handleOpenEditRecebimento = (grupo) => {
-    const primeiraComDados = grupo.detalhesOs.find((item) =>
-      item.dataPrevista || item.dataRecebimento || item.formaPagamento || item.observacoes
-    ) || grupo.detalhesOs[0]
+    const saldoGrupo = Number(grupo.saldo || 0)
+    if (saldoGrupo <= 0) {
+      openAlertDialog('Este cliente já está totalmente recebido.')
+      return
+    }
 
     setEditingRecebimentoGrupo(grupo)
     setRecebimentoForm({
-      status: grupo.status || 'pendente',
-      valor_parcial: Number(grupo.totalRecebido || 0).toFixed(2),
-      data_prevista: (primeiraComDados?.dataPrevista || '').slice(0, 10),
-      data_recebimento: (primeiraComDados?.dataRecebimento || '').slice(0, 10),
-      forma_pagamento: primeiraComDados?.formaPagamento || '',
-      observacoes: primeiraComDados?.observacoes || ''
+      status: 'parcial',
+      valor_parcial: Number(saldoGrupo).toFixed(2),
+      data_prevista: '',
+      data_recebimento: getTodayDateOnly(),
+      forma_pagamento: '',
+      observacoes: ''
     })
     setIsRecebimentoModalOpen(true)
   }
@@ -1181,43 +1284,57 @@ const Financeiro = () => {
     if (!editingRecebimentoGrupo) return
 
     const statusSelecionado = recebimentoForm.status || 'pendente'
-    const totalPrevisto = Number(editingRecebimentoGrupo.totalPrevisto || 0)
+    const totalSaldoGrupo = Number(editingRecebimentoGrupo.saldo || 0)
 
     let totalParaDistribuir = 0
     if (statusSelecionado === 'recebido') {
-      totalParaDistribuir = totalPrevisto
+      totalParaDistribuir = totalSaldoGrupo
     } else if (statusSelecionado === 'parcial') {
       const valorParcial = Number(String(recebimentoForm.valor_parcial || '0').replace(',', '.'))
       if (Number.isNaN(valorParcial) || valorParcial < 0) {
         openAlertDialog('Informe um valor parcial válido.')
         return
       }
-      totalParaDistribuir = Math.min(valorParcial, totalPrevisto)
+      totalParaDistribuir = Math.min(valorParcial, totalSaldoGrupo)
+    }
+
+    if (totalParaDistribuir <= 0) {
+      openAlertDialog('Não há saldo para lançar neste recebimento.')
+      return
     }
 
     try {
       let restante = totalParaDistribuir
+      let lancamentosCriados = 0
 
       for (const servico of editingRecebimentoGrupo.servicos) {
         const valorServico = Number(servico.valor_total || 0)
         const registros = recebimentosPorServico[servico.id] || []
-        const registroExistente = registros[0] || null
+        const valorJaRecebido = registros.reduce((sum, item) => {
+          if (!['recebido', 'parcial'].includes(item.status)) return sum
+          return sum + Number(item.valor || 0)
+        }, 0)
+        const saldoServico = Math.max(valorServico - valorJaRecebido, 0)
+
+        if (saldoServico <= 0 || restante <= 0) continue
 
         let valorRecebimento = 0
         let statusFinal = 'pendente'
 
         if (statusSelecionado === 'recebido') {
-          valorRecebimento = valorServico
+          valorRecebimento = saldoServico
           statusFinal = 'recebido'
         } else if (statusSelecionado === 'parcial') {
-          valorRecebimento = Math.max(0, Math.min(valorServico, restante))
-          if (valorRecebimento + 0.01 >= valorServico) {
+          valorRecebimento = Math.max(0, Math.min(saldoServico, restante))
+          if (valorJaRecebido + valorRecebimento + 0.01 >= valorServico) {
             statusFinal = 'recebido'
           } else if (valorRecebimento > 0) {
             statusFinal = 'parcial'
           }
           restante -= valorRecebimento
         }
+
+        if (valorRecebimento <= 0) continue
 
         const payload = {
           servico_id: servico.id,
@@ -1229,18 +1346,20 @@ const Financeiro = () => {
           observacoes: recebimentoForm.observacoes || null
         }
 
-        if (registroExistente?.id) {
-          await api.put(`/recebimentos/${registroExistente.id}`, payload)
-        } else {
-          await api.post('/recebimentos', payload)
-        }
+        await api.post('/recebimentos', payload)
+        lancamentosCriados += 1
+      }
+
+      if (lancamentosCriados === 0) {
+        openAlertDialog('Nenhum novo lançamento foi criado. Verifique o saldo das OS selecionadas.')
+        return
       }
 
       setIsRecebimentoModalOpen(false)
       setEditingRecebimentoGrupo(null)
       refetchRecebimentos()
     } catch (err) {
-      openAlertDialog(err.response?.data?.error || 'Não foi possível atualizar o recebimento.', 'Erro')
+      openAlertDialog(err.response?.data?.error || 'Não foi possível lançar o recebimento.', 'Erro')
     }
   }
 
@@ -1876,7 +1995,7 @@ const Financeiro = () => {
                     <th>Total OS</th>
                     <th>Recebido</th>
                     <th>Saldo</th>
-                    {isAdmin && <th>Ações</th>}
+                    <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1910,22 +2029,32 @@ const Financeiro = () => {
                         <td>{formatCurrency(Number(item.totalPrevisto || 0))}</td>
                         <td>{formatCurrency(Number(item.totalRecebido || 0))}</td>
                         <td>{formatCurrency(Number(item.saldo || 0))}</td>
-                        {isAdmin && (
-                          <td>
+                        <td>
+                          <div className="financeiro__actions-cell">
                             <button
                               type="button"
-                              className="financeiro__icon-btn financeiro__icon-btn--edit"
-                              onClick={() => handleOpenEditRecebimento(item)}
-                              title="Editar recebimento"
+                              className="financeiro__icon-btn financeiro__icon-btn--print"
+                              onClick={() => handleOpenRecibo(item)}
+                              title="Gerar recibo"
                             >
-                              <MdEdit />
+                              <MdPrint />
                             </button>
-                          </td>
-                        )}
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                className="financeiro__icon-btn financeiro__icon-btn--edit"
+                                onClick={() => handleOpenEditRecebimento(item)}
+                                title="Lançar novo recebimento"
+                              >
+                                <MdEdit />
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                       {expandedRecebimentos.has(item.clienteKey) && (
                         <tr className="financeiro__detail-row">
-                          <td colSpan={isAdmin ? 7 : 6}>
+                          <td colSpan={7}>
                             <div className="financeiro__detail-box">
                               <table className="financeiro__table financeiro__table--compact">
                                 <thead>
@@ -2146,7 +2275,7 @@ const Financeiro = () => {
         <div className="financeiro__modal-backdrop" onClick={() => setIsRecebimentoModalOpen(false)}>
           <div className="financeiro__modal" onClick={(event) => event.stopPropagation()}>
             <div className="financeiro__modal-header">
-              <h3>Editar Recebimento - {editingRecebimentoGrupo.clienteNome}</h3>
+              <h3>Lançar Recebimento - {editingRecebimentoGrupo.clienteNome}</h3>
               <button
                 type="button"
                 className="financeiro__modal-close"
@@ -2160,6 +2289,9 @@ const Financeiro = () => {
             </div>
 
             <form className="financeiro__modal-form" onSubmit={handleSubmitRecebimento}>
+              <p className="financeiro__muted" style={{ margin: '0 0 12px', fontSize: 13 }}>
+                Cada envio cria um novo lançamento de recebimento e preserva os anteriores.
+              </p>
               <div className="financeiro__form-grid">
                 <label className="financeiro__label">
                   Status
@@ -2268,7 +2400,7 @@ const Financeiro = () => {
                   Cancelar
                 </button>
                 <button type="submit" className="financeiro__button">
-                  Salvar
+                  Lançar
                 </button>
               </div>
             </form>
@@ -2777,6 +2909,104 @@ const Financeiro = () => {
               >
                 <MdUploadFile />
                 {comprovantesUploading ? 'Enviando...' : 'Selecionar arquivo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reciboGrupo && (
+        <div className="financeiro__modal-backdrop financeiro__recibo-backdrop" onClick={handleCloseRecibo}>
+          <div
+            className="financeiro__modal financeiro__recibo-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="financeiro__recibo-print-area">
+              <div className="financeiro__recibo-header">
+                <h2 className="financeiro__recibo-title">RECIBO DE PAGAMENTO</h2>
+                <p className="financeiro__recibo-date">
+                  Data: {new Date().toLocaleDateString('pt-BR')}
+                </p>
+              </div>
+
+              <div className="financeiro__recibo-client">
+                <span className="financeiro__recibo-label">Razão social:</span>
+                <strong>{reciboRazaoSocial}</strong>
+              </div>
+
+              <label className="financeiro__checkbox-inline financeiro__recibo-config">
+                <input
+                  type="checkbox"
+                  checked={reciboMostrarOs}
+                  onChange={(event) => setReciboMostrarOs(event.target.checked)}
+                />
+                Exibir OS no texto do recibo
+              </label>
+
+              <p className="financeiro__recibo-texto">
+                Recebi de <strong>{reciboRazaoSocial}</strong> o valor total de{' '}
+                <strong>{formatCurrency(reciboValorTotal)}</strong>, referente ao serviço prestado de
+                montagem de móveis e utensílios domésticos
+                {reciboMostrarOs && (
+                  <>
+                    , vinculado{reciboOsResumo.includes(',') ? 's às OS' : ' à OS'}{' '}
+                    <strong>{reciboOsResumo}</strong>
+                  </>
+                )}
+                , nesta data de{' '}
+                <strong>{new Date().toLocaleDateString('pt-BR')}</strong>.
+              </p>
+
+              <div className="financeiro__recibo-assinatura">
+                <div className="financeiro__recibo-assinatura-linha">
+                  <label htmlFor="recibo-assinatura-responsavel" className="financeiro__recibo-assinatura-label">
+                    Assinatura do responsável
+                  </label>
+                  <input
+                    id="recibo-assinatura-responsavel"
+                    type="text"
+                    className="financeiro__recibo-assinatura-input"
+                    value={reciboAssinatura.assinaturaResponsavel}
+                    onChange={(event) => setReciboAssinatura((prev) => ({
+                      ...prev,
+                      assinaturaResponsavel: event.target.value
+                    }))}
+                    
+                  />
+                </div>
+                <div className="financeiro__recibo-assinatura-linha">
+                  <label htmlFor="recibo-assinatura-cpf" className="financeiro__recibo-assinatura-label">
+                    CPF / CNPJ
+                  </label>
+                  <input
+                    id="recibo-assinatura-cpf"
+                    type="text"
+                    className="financeiro__recibo-assinatura-input"
+                    value={reciboAssinatura.cpfCnpj}
+                    onChange={(event) => setReciboAssinatura((prev) => ({
+                      ...prev,
+                      cpfCnpj: event.target.value
+                    }))}
+                    placeholder="Preencha aqui"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="financeiro__modal-actions financeiro__recibo-actions">
+              <button
+                type="button"
+                className="financeiro__button financeiro__button--ghost"
+                onClick={handleCloseRecibo}
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                className="financeiro__button"
+                onClick={() => window.print()}
+              >
+                <MdPrint /> Imprimir
               </button>
             </div>
           </div>

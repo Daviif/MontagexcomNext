@@ -183,6 +183,21 @@ CREATE TABLE servico_produtos (
 CREATE INDEX idx_servico_produtos_servico ON servico_produtos(servico_id);
 
 -- =====================================================
+-- SERVICO_EXTRAS
+-- =====================================================
+
+CREATE TABLE servico_extras (
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE CASCADE,
+    descricao  VARCHAR(200) NOT NULL,
+    valor      NUMERIC(10,2) NOT NULL DEFAULT 0,
+    observacao TEXT,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE INDEX idx_servico_extras_servico ON servico_extras(servico_id);
+
+-- =====================================================
 -- SERVICO_MONTADORES
 -- =====================================================
 

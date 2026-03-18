@@ -57,6 +57,7 @@ const routeMap = {
   // servicos: models.Servico, // Removido - usa rota customizada acima
   servico_produtos: models.ServicoProduto,
   servico_montadores: models.ServicoMontador,
+  servico_extras: models.ServicoExtra,
   rotas: models.Rota,
   rota_servicos: models.RotaServico,
   recebimentos: models.Recebimento,
@@ -92,6 +93,32 @@ const validateUniqueRotaServico = async (req, res) => {
   return true;
 };
 
+const normalizeRotaStatusValue = (status) => {
+  const statusMap = {
+    concluida: 'finalizada',
+    concluido: 'finalizada'
+  };
+
+  return statusMap[status] || status;
+};
+
+const normalizeRotaPayload = async (req, res) => {
+  if (!req.body || typeof req.body !== 'object') {
+    return true;
+  }
+
+  if (req.body.status) {
+    req.body.status = normalizeRotaStatusValue(req.body.status);
+
+    if (!['planejada', 'em_andamento', 'finalizada'].includes(req.body.status)) {
+      res.status(400).json({ error: 'Status de rota inválido' });
+      return false;
+    }
+  }
+
+  return true;
+};
+
 Object.entries(routeMap).forEach(([path, model]) => {
   const resourceMiddleware = authorizeResource(path);
 
@@ -115,6 +142,18 @@ Object.entries(routeMap).forEach(([path, model]) => {
       resourceMiddleware,
       createCrudRouter(model, {
         beforeCreate: validateUniqueRotaServico
+      })
+    );
+    return;
+  }
+
+  if (path === 'rotas') {
+    router.use(
+      `/${path}`,
+      resourceMiddleware,
+      createCrudRouter(model, {
+        beforeCreate: normalizeRotaPayload,
+        beforeUpdate: normalizeRotaPayload
       })
     );
     return;

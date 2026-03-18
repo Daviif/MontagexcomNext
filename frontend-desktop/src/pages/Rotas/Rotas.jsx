@@ -23,6 +23,15 @@ import { useDate } from '../../hooks/useFormatters'
 import api from '../../services/api'
 import './Rotas.css'
 
+const ROTA_STATUS_ALIAS = {
+  concluida: 'finalizada',
+  concluido: 'finalizada'
+}
+
+const ROTA_STATUS_SEQUENCE = ['planejada', 'em_andamento', 'finalizada']
+
+const normalizeRotaStatus = (status) => ROTA_STATUS_ALIAS[status] || status || 'planejada'
+
 const Rotas = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroAtribuicao, setFiltroAtribuicao] = useState('todos') // 'todos', 'equipe', 'individual'
@@ -300,7 +309,7 @@ const Rotas = () => {
       equipe_id: rota.equipe_id || '',
       horario_inicio: rota.horario_inicio || '08:00',
       horario_fim: rota.horario_fim || '18:00',
-      status: rota.status || 'planejada',
+      status: normalizeRotaStatus(rota.status),
       servicos: servicosIds
     })
     setFiltroAtribuicao('todos')
@@ -338,10 +347,10 @@ const Rotas = () => {
     e?.stopPropagation()
 
     if (!isAdmin) return
-    
-    const statusOptions = ['planejada', 'em_andamento', 'concluida', 'cancelada']
-    const currentIndex = statusOptions.indexOf(rota.status)
-    const nextStatus = statusOptions[(currentIndex + 1) % statusOptions.length]
+
+    const currentStatus = normalizeRotaStatus(rota.status)
+    const currentIndex = ROTA_STATUS_SEQUENCE.indexOf(currentStatus)
+    const nextStatus = ROTA_STATUS_SEQUENCE[(currentIndex + 1) % ROTA_STATUS_SEQUENCE.length]
     
     try {
       await api.put(`/rotas/${rota.id}`, {
@@ -446,7 +455,7 @@ const Rotas = () => {
           equipe_id: rotaForm.equipe_id || null,
           horario_inicio: rotaForm.horario_inicio,
           horario_fim: rotaForm.horario_fim,
-          status: rotaForm.status || 'planejada'
+          status: normalizeRotaStatus(rotaForm.status)
         })
 
         // Deletar todos os RotaServicos antigos
@@ -480,7 +489,7 @@ const Rotas = () => {
           equipe_id: rotaForm.equipe_id || null,
           horario_inicio: rotaForm.horario_inicio,
           horario_fim: rotaForm.horario_fim,
-          status: rotaForm.status || 'planejada'
+          status: normalizeRotaStatus(rotaForm.status)
         })
 
         const rotaId = rotaResponse.data.id
@@ -503,26 +512,22 @@ const Rotas = () => {
   }
 
   const getStatusIcon = (status) => {
-    switch (status) {
-      case 'concluida':
+    switch (normalizeRotaStatus(status)) {
+      case 'finalizada':
         return <MdCheckCircle className="rotas__status-icon rotas__status-icon--success" />
       case 'em_andamento':
         return <MdAccessTime className="rotas__status-icon rotas__status-icon--warning" />
-      case 'cancelada':
-        return <MdCancel className="rotas__status-icon rotas__status-icon--danger" />
       default:
         return <MdPending className="rotas__status-icon rotas__status-icon--info" />
     }
   }
 
   const getStatusLabel = (status) => {
-    switch (status) {
-      case 'concluida':
+    switch (normalizeRotaStatus(status)) {
+      case 'finalizada':
         return 'Concluída'
       case 'em_andamento':
-        return 'Em Andamento'
-      case 'cancelada':
-        return 'Cancelada'
+        return 'Em andamento'
       default:
         return 'Planejada'
     }
@@ -886,9 +891,8 @@ const Rotas = () => {
                     }))}
                   >
                     <option value="planejada">Planejada</option>
-                    <option value="em_andamento">Em Andamento</option>
-                    <option value="concluida">Concluída</option>
-                    <option value="cancelada">Cancelada</option>
+                    <option value="em_andamento">Em andamento</option>
+                    <option value="finalizada">Concluída</option>
                   </select>
                 </label>
               </div>

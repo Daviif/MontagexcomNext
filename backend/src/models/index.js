@@ -11,6 +11,7 @@ const Servico = require('./Servico')(sequelize, Sequelize.DataTypes);
 const ServicoProduto = require('./ServicoProduto')(sequelize, Sequelize.DataTypes);
 const ServicoMontador = require('./ServicoMontador')(sequelize, Sequelize.DataTypes);
 const ServicoAnexo = require('./ServicoAnexo')(sequelize, Sequelize.DataTypes);
+const ServicoExtra = require('./ServicoExtra')(sequelize, Sequelize.DataTypes);
 const Rota = require('./Rota')(sequelize, Sequelize.DataTypes);
 const RotaServico = require('./RotaServico')(sequelize, Sequelize.DataTypes);
 const Recebimento = require('./Recebimento')(sequelize, Sequelize.DataTypes);
@@ -50,6 +51,9 @@ Servico.hasMany(ServicoAnexo, { foreignKey: 'servico_id' });
 ServicoAnexo.belongsTo(Servico, { foreignKey: 'servico_id' });
 ServicoAnexo.belongsTo(Usuario, { foreignKey: 'criado_por', as: 'criador' });
 Usuario.hasMany(ServicoAnexo, { foreignKey: 'criado_por' });
+
+Servico.hasMany(ServicoExtra, { foreignKey: 'servico_id' });
+ServicoExtra.belongsTo(Servico, { foreignKey: 'servico_id' });
 
 Equipe.hasMany(Rota, { foreignKey: 'equipe_id' });
 Rota.belongsTo(Equipe, { foreignKey: 'equipe_id' });
@@ -101,6 +105,7 @@ module.exports = {
     ServicoProduto,
     ServicoMontador,
     ServicoAnexo,
+    ServicoExtra,
     Rota,
     RotaServico,
     Recebimento,

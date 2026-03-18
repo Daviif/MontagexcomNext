@@ -328,7 +328,7 @@ const rotaValidators = {
   update: [
     body('status')
       .optional()
-      .isIn(['planejada', 'em_andamento', 'finalizada']).withMessage('Status inválido'),
+      .isIn(['planejada', 'em_andamento', 'finalizada', 'concluida', 'concluido']).withMessage('Status inválido'),
 
     body('km_total')
       .optional()
