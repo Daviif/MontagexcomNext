@@ -58,7 +58,7 @@ async function checkAndFix() {
     const servicosResult = await client.query(`
       SELECT 
         s.id,
-        s.codigo_servico,
+        s.codigo_os_loja,
         s.data_servico,
         s.valor_total,
         s.valor_repasse_montagem,
@@ -73,7 +73,7 @@ async function checkAndFix() {
     console.log(`Total de serviços: ${servicosResult.rows.length}\n`);
     
     for (const servico of servicosResult.rows) {
-      console.log(`Serviço: ${servico.codigo_servico || servico.id}`);
+      console.log(`Serviço: ${servico.codigo_os_loja || servico.id}`);
       console.log(`  Data: ${servico.data_servico}`);
       console.log(`  Valor Total: R$ ${Number(servico.valor_total).toFixed(2)}`);
       console.log(`  Valor Repasse: R$ ${Number(servico.valor_repasse_montagem).toFixed(2)}`);
@@ -94,8 +94,7 @@ async function checkAndFix() {
           sm.id,
           sm.usuario_id,
           u.nome,
-          sm.valor_atribuido,
-          sm.papel
+          sm.valor_atribuido
         FROM servico_montadores sm
         JOIN usuarios u ON sm.usuario_id = u.id
         WHERE sm.servico_id = $1
@@ -106,7 +105,7 @@ async function checkAndFix() {
       
       const montadoresUnicos = new Set();
       for (const montador of montadoresResult.rows) {
-        console.log(`    - ${montador.nome}: R$ ${Number(montador.valor_atribuido).toFixed(2)} (${montador.papel})`);
+        console.log(`    - ${montador.nome}: R$ ${Number(montador.valor_atribuido).toFixed(2)} `);
         
         if (montadoresUnicos.has(montador.usuario_id)) {
           console.log(`      ❌ DUPLICADO!`);
@@ -121,7 +120,7 @@ async function checkAndFix() {
     const duplicatasResult = await client.query(`
       SELECT 
         sm.servico_id,
-        s.codigo_servico,
+        s.codigo_os_loja,
         sm.usuario_id,
         u.nome as montador,
         COUNT(*) as quantidade_registros,
@@ -132,7 +131,7 @@ async function checkAndFix() {
       WHERE s.loja_id = $1
         AND s.data_servico >= '2026-02-01' 
         AND s.data_servico < '2026-03-01'
-      GROUP BY sm.servico_id, s.codigo_servico, sm.usuario_id, u.nome
+      GROUP BY sm.servico_id, s.codigo_os_loja, sm.usuario_id, u.nome
       HAVING COUNT(*) > 1
     `, [loja.id]);
 
@@ -140,7 +139,7 @@ async function checkAndFix() {
       console.log(`❌ Encontradas ${duplicatasResult.rows.length} duplicatas:\n`);
       
       for (const dup of duplicatasResult.rows) {
-        console.log(`Serviço ${dup.codigo_servico}: ${dup.montador} aparece ${dup.quantidade_registros}x`);
+        console.log(`Serviço ${dup.codigo_os_loja}: ${dup.montador} aparece ${dup.quantidade_registros}x`);
         console.log(`  IDs: ${dup.ids.join(', ')}`);
       }
 
@@ -194,7 +193,7 @@ async function checkAndFix() {
           ? (servico.valor_total * loja.porcentagem_repasse / 100)
           : servico.valor_total;
         
-        console.log(`Serviço ${servico.codigo_servico}:`);
+        console.log(`Serviço ${servico.codigo_os_loja}:`);
         console.log(`  Atual: R$ ${Number(servico.valor_repasse_montagem).toFixed(2)}`);
         console.log(`  Deveria ser: R$ ${valorCorreto.toFixed(2)}`);
 

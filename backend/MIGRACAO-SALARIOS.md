@@ -70,7 +70,6 @@ curl -X POST http://localhost:3001/api/v1/servico_montadores \
     "usuario_id": "uuid-do-montador",
     "valor_atribuido": 75.00,
     "percentual_divisao": 100.00,
-    "papel": "principal"
   }'
 ```
 

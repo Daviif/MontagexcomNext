@@ -8,6 +8,7 @@ const router = express.Router();
  * GET /lojas
  * Listar todas as lojas
  */
+// Endpoint customizado: retorna lojas com valor de débito/divida calculado
 router.get('/', async (req, res, next) => {
   try {
     const { limit, offset, orderBy, orderDir, ...filters } = req.query;
@@ -23,8 +24,51 @@ router.get('/', async (req, res, next) => {
       options.order = [[orderBy, orderDir && orderDir.toUpperCase() === 'DESC' ? 'DESC' : 'ASC']];
     }
 
-    const results = await models.Loja.findAll(options);
-    res.json(results);
+    // Busca todas as lojas
+    const lojas = await models.Loja.findAll(options);
+    // Busca todos os serviços dessas lojas
+    const lojaIds = lojas.map(l => l.id);
+    const servicos = await models.Servico.findAll({
+      where: { loja_id: lojaIds },
+      attributes: ['id', 'loja_id', 'valor_total'],
+    });
+    // Mapeia serviços por loja
+    const servicosPorLoja = {};
+    servicos.forEach(s => {
+      if (!servicosPorLoja[s.loja_id]) servicosPorLoja[s.loja_id] = [];
+      servicosPorLoja[s.loja_id].push(s);
+    });
+    // Busca todos os recebimentos dos serviços dessas lojas
+    const servicoIds = servicos.map(s => s.id);
+    const recebimentos = await models.Recebimento.findAll({
+      where: { servico_id: servicoIds },
+      attributes: ['id', 'servico_id', 'valor', 'status'],
+    });
+    // Mapeia recebimentos por servico
+    const recebimentosPorServico = {};
+    recebimentos.forEach(r => {
+      if (!recebimentosPorServico[r.servico_id]) recebimentosPorServico[r.servico_id] = [];
+      recebimentosPorServico[r.servico_id].push(r);
+    });
+
+    // Calcula o débito/divida de cada loja
+    const lojasComDivida = lojas.map(loja => {
+      const servicosLoja = servicosPorLoja[loja.id] || [];
+      const totalServicos = servicosLoja.reduce((acc, s) => acc + Number(s.valor_total || 0), 0);
+      // Recebimentos pagos
+      const totalRecebido = servicosLoja.reduce((acc, s) => {
+        const recs = recebimentosPorServico[s.id] || [];
+        const pagos = recs.filter(r => r.status === 'pago');
+        return acc + pagos.reduce((a, r) => a + Number(r.valor || 0), 0);
+      }, 0);
+      const divida = totalServicos - totalRecebido;
+      // Adiciona campo divida ao objeto
+      return {
+        ...loja.toJSON(),
+        divida,
+      };
+    });
+    res.json(lojasComDivida);
   } catch (err) {
     next(err);
   }

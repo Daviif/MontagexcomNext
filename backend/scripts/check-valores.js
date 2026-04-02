@@ -10,7 +10,7 @@ require('dotenv').config();
     
     const result = await client.query(`
       SELECT 
-        s.codigo_servico,
+        s.codigo_os_loja,
         s.valor_total,
         s.valor_repasse_montagem,
         u.nome as montador,
@@ -29,7 +29,7 @@ require('dotenv').config();
     console.log('=== VALORES ATUALIZADOS NO BANCO ===\n');
     result.rows.forEach(r => {
       console.log(`Loja: ${r.loja} (${r.porcentagem_repasse}%)`);
-      console.log(`Serviço: ${r.codigo_servico}`);
+      console.log(`Serviço: ${r.codigo_os_loja}`);
       console.log(`Valor Total: R$ ${r.valor_total}`);
       console.log(`Valor Repasse (${r.porcentagem_repasse}%): R$ ${r.valor_repasse_montagem}`);
       console.log(`Montador: ${r.montador}`);

@@ -124,7 +124,7 @@ CREATE INDEX idx_produtos_ativo ON produtos(ativo);
 
 CREATE TABLE servicos (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    codigo_servico VARCHAR(50),
+    codigo_os_loja VARCHAR(50),
     data_servico DATE NOT NULL,
 
     tipo_cliente VARCHAR(20) 

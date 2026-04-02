@@ -5,7 +5,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true
     },
-    codigo_servico: {
+    codigo_os_loja: {
       type: DataTypes.STRING(50)
     },
     data_servico: {
@@ -32,8 +32,8 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL(9, 6)
     },
     prioridade: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0
+      type: DataTypes.STRING(20),
+      defaultValue: 'normal'
     },
     janela_inicio: {
       type: DataTypes.TIME

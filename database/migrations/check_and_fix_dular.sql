@@ -14,7 +14,7 @@ WHERE nome_fantasia = 'DULAR' OR razao_social LIKE '%DULAR%' OR cnpj LIKE '%0170
 -- 2. Verificar serviços da loja DULAR em fevereiro 2026
 SELECT 
     s.id,
-    s.codigo_servico,
+    s.codigo_os_loja,
     s.data_servico,
     s.valor_total,
     s.valor_repasse_montagem,
@@ -31,7 +31,7 @@ ORDER BY s.data_servico;
 -- 3. Verificar montadores duplicados para esses serviços
 SELECT 
     sm.servico_id,
-    s.codigo_servico,
+    s.codigo_os_loja,
     sm.usuario_id,
     u.nome as montador,
     COUNT(*) as quantidade_registros,
@@ -43,13 +43,13 @@ JOIN lojas l ON s.loja_id = l.id
 WHERE s.data_servico >= '2026-02-01' 
   AND s.data_servico < '2026-03-01'
   AND (l.nome_fantasia = 'DULAR' OR l.cnpj LIKE '%01704320001416%')
-GROUP BY sm.servico_id, s.codigo_servico, sm.usuario_id, u.nome
+GROUP BY sm.servico_id, s.codigo_os_loja, sm.usuario_id, u.nome
 HAVING COUNT(*) > 1;
 
 -- 4. Mostrar todos os registros de servico_montadores para fevereiro
 SELECT 
     sm.id,
-    s.codigo_servico,
+    s.codigo_os_loja,
     s.data_servico,
     u.nome as montador,
     sm.valor_atribuido,

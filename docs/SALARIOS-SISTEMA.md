@@ -222,7 +222,7 @@ Obter salários calculados dos montadores
         "detalhes": [
           {
             "servico_id": "uuid",
-            "codigo_servico": "SRV-2024-001",
+            "codigo_os_loja": "SRV-2024-001",
             "data_servico": "2024-02-05",
             "valor_atribuido": 350.00,
             "papel": "principal"
@@ -769,7 +769,7 @@ function ModalDetalhesSalario({ visible, montador, onClose }) {
         columns={[
           {
             title: 'Código',
-            dataIndex: 'codigo_servico',
+            dataIndex: 'codigo_os_loja',
             key: 'codigo'
           },
           {

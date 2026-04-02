@@ -206,7 +206,7 @@ io.on('connection', (socket) => {
 const { Sequelize, DataTypes } = require('sequelize');
 
 const Servico = sequelize.define('Servico', {
-  codigo_servico: DataTypes.STRING,
+  codigo_os_loja: DataTypes.STRING,
   data_servico: DataTypes.DATE,
   valor_final: DataTypes.DECIMAL(10, 2)
 });
@@ -230,7 +230,7 @@ class Servico {
   id: string;
   
   @Column()
-  codigo_servico: string;
+  codigo_os_loja: string;
   
   @Column('decimal')
   valor_final: number;

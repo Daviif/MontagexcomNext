@@ -23,7 +23,13 @@ router.get('/', async (req, res, next) => {
       options.order = [[orderBy, orderDir && orderDir.toUpperCase() === 'DESC' ? 'DESC' : 'ASC']];
     }
 
-    const results = await models.Servico.findAll(options);
+    const results = await models.Servico.findAll({
+      ...options,
+      include: [
+        { model: models.Loja, as: 'Loja', attributes: ['id', 'nome_fantasia', 'cnpj', 'endereco'] },
+        { model: models.ClienteParticular, as: 'ClienteParticular', attributes: ['id', 'nome', 'endereco'] }
+      ]
+    });
     res.json(results);
   } catch (err) {
     next(err);
@@ -33,7 +39,15 @@ router.get('/', async (req, res, next) => {
 // GET one servico
 router.get('/:id', async (req, res, next) => {
   try {
-    const result = await models.Servico.findByPk(req.params.id);
+    const result = await models.Servico.findByPk(req.params.id, {
+      include: [
+        { model: models.Loja, as: 'Loja', attributes: ['id', 'nome_fantasia', 'cnpj', 'endereco', 'email'] },
+        { model: models.ClienteParticular, as: 'ClienteParticular', attributes: ['id', 'nome', 'endereco', 'telefone'] },
+          { model: models.ServicoProduto, include: [{ model: models.Produto }] },
+          { model: models.ServicoMontador, as: 'montadores', include: [{ model: models.Usuario }, { model: models.Equipe }] },
+        { model: models.ServicoAnexo, as: 'ServicoAnexos', include: [{ model: models.Usuario, as: 'criador' }] },
+      ]
+    });
     if (!result) {
       return res.status(404).json({ error: 'Not found' });
     }

@@ -22,9 +22,6 @@ module.exports = (sequelize, DataTypes) => {
     percentual_divisao: {
       type: DataTypes.DECIMAL(5, 2)
     },
-    papel: {
-      type: DataTypes.STRING(20) // 'principal', 'auxiliar'
-    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW

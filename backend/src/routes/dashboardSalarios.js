@@ -90,9 +90,10 @@ router.get('/', async (req, res) => {
       },
       include: [{
         model: models.Loja,
+        as: 'Loja',
         attributes: ['id', 'usa_porcentagem', 'porcentagem_repasse', 'nome_fantasia', 'razao_social']
       }],
-      attributes: ['id', 'codigo_servico', 'codigo_os_loja', 'data_servico', 'valor_total', 'valor_repasse_montagem', 'tipo_cliente', 'loja_id', 'cliente_particular_id']
+      attributes: ['id', 'codigo_os_loja', 'codigo_os_loja', 'data_servico', 'valor_total', 'valor_repasse_montagem', 'tipo_cliente', 'loja_id', 'cliente_particular_id']
     });
 
     const servicoById = servicosPeriodo.reduce((acc, servico) => {
@@ -106,7 +107,7 @@ router.get('/', async (req, res) => {
           where: {
             servico_id: { [Op.in]: servicoIds }
           },
-          attributes: ['id', 'servico_id', 'usuario_id', 'equipe_id', 'valor_atribuido', 'papel', 'percentual_divisao']
+          attributes: ['id', 'servico_id', 'usuario_id', 'equipe_id', 'valor_atribuido',  'percentual_divisao']
         })
       : [];
 
@@ -283,12 +284,11 @@ router.get('/', async (req, res) => {
         return {
           servico_id: sm.servico_id,
           codigo_os_loja: servico?.codigo_os_loja,
-          codigo_servico: servico?.codigo_servico,
+          codigo_os_loja: servico?.codigo_os_loja,
           data_servico: servico?.data_servico,
           valor_cheio: parseFloat(valorCheio || 0),
           valor_calculado: parseFloat(valorCalculadoCliente || 0),
           valor_atribuido: parseFloat(valorCalculado || 0),
-          papel: sm.papel,
           percentual_divisao: parseFloat(sm.percentual_divisao || 0),
           equipe_id: sm.equipe_id || null,
           ...(isDebug && { _debug: passos })

@@ -35,7 +35,7 @@ const FILES = [
   path.join(ROOT_MIGRATIONS, '002_add_cnpj_lojas.sql'),
   path.join(ROOT_MIGRATIONS, '003_add_loja_produtos.sql'),
   path.join(ROOT_MIGRATIONS, '004_add_responsavel_despesas.sql'),
-  path.join(ROOT_MIGRATIONS, '005_add_codigo_servico.sql'),
+  path.join(ROOT_MIGRATIONS, '005_add_codigo_os_loja.sql'),
   path.join(ROOT_MIGRATIONS, '006_add_cliente_final_servicos.sql'),
   path.join(ROOT_MIGRATIONS, '007_unique_servico_montador.sql'),
   path.join(ROOT_MIGRATIONS, '008_rotas_equipe_opcional.sql'),

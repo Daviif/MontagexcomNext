@@ -8,6 +8,8 @@ const lojasRoutes = require('./lojas');
 const servicosRoutes = require('./servicos');
 const anexosRoutes = require('./anexos');
 const perfilRoutes = require('./perfil');
+const despesasRoutes = require('./despesas');
+
 const createPagamentosFuncionariosRouter = require('./pagamentosFuncionarios');
 const {
   requireAdmin,
@@ -20,6 +22,10 @@ const {
 const { models } = require('../models');
 
 const router = express.Router();
+
+// Rota para listar todas as baixas de pagamentos de funcionários
+const pagamentosFuncionariosBaixasRoutes = require('./pagamentos_funcionarios_baixas');
+router.use('/pagamentos_funcionarios_baixas', pagamentosFuncionariosBaixasRoutes);
 
 router.get('/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -35,6 +41,7 @@ router.use(authMiddleware);
 router.use('/dashboard/salarios', requireAdmin('Apenas administradores podem acessar salários'), dashboardSalariosRoutes);
 router.use('/dashboard', dashboardRoutes);
 
+router.use('/despesas', despesasRoutes);
 // Perfil do usuário autenticado
 router.use('/perfil', perfilRoutes);
 
@@ -43,6 +50,14 @@ router.use('/lojas', authorizeResource('lojas'), lojasRoutes);
 
 // Rota customizada de servicos (com validação de foreign keys)
 router.use('/servicos', servicosRoutes);
+
+// Rota customizada de servico_montadores
+const servicoMontadoresRoutes = require('./servico_montadores');
+router.use('/servico_montadores', servicoMontadoresRoutes);
+
+// Rota customizada de servico_produtos
+const servicoProdutosRoutes = require('./servico_produtos');
+router.use('/servico_produtos', servicoProdutosRoutes);
 
 // Rota de anexos de serviços
 router.use('/anexos', anexosRoutes);

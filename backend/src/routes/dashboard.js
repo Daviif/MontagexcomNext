@@ -267,6 +267,7 @@ router.get('/', async (req, res) => {
       [Op.not]: { tipo: 'admin' }
     };
 
+
     const montadoresAtivos = await models.Usuario.count({
       where: { ...montadorFiltro, ativo: true }
     });
@@ -274,6 +275,12 @@ router.get('/', async (req, res) => {
     const totalMontadores = await models.Usuario.count({
       where: montadorFiltro
     });
+
+    // Contar todos os clientes particulares (não existe coluna 'ativo')
+    const clientesAtivos = await models.ClienteParticular.count();
+
+    // Contar todas as lojas (não existe coluna 'ativa')
+    const lojasAtivas = await models.Loja.count();
 
     const receitasPorTipo = await models.Recebimento.findAll({
       attributes: [
@@ -317,6 +324,69 @@ router.get('/', async (req, res) => {
       });
     }
 
+    // Despesas por categoria (no mês atual)
+    const despesasPorCategoriaRaw = await models.Despesa.findAll({
+      attributes: [
+        'categoria',
+        [sequelize.fn('SUM', sequelize.col('valor')), 'total']
+      ],
+      where: {
+        data_despesa: { [Op.between]: [inicioMes, fimMes] }
+      },
+      group: ['categoria'],
+      raw: true
+    });
+
+    const despesasPorCategoria = despesasPorCategoriaRaw.map(item => ({
+      categoria: item.categoria || 'Outros',
+      valor: parseFloat(item.total || 0)
+    }));
+
+    // Top Montadores do mês (por quantidade de serviços e valor atribuído)
+    // Busca todos os montadores que participaram de serviços no mês
+    const topMontadoresRaw = await models.ServicoMontador.findAll({
+      attributes: [
+        'usuario_id',
+        [sequelize.fn('COUNT', sequelize.col('ServicoMontador.id')), 'qtd_servicos'],
+        [sequelize.fn('SUM', sequelize.col('valor_atribuido')), 'valor_total']
+      ],
+      include: [
+        {
+          model: models.Servico,
+          attributes: [],
+          required: true,
+          where: {
+            data_servico: { [Op.between]: [inicioMes, fimMes] },
+            status: 'concluido'
+          }
+        }
+      ],
+      group: ['usuario_id'],
+      order: [[sequelize.literal('valor_total'), 'DESC']],
+      limit: 5,
+      raw: true
+    });
+
+    // Busca dados dos usuários (nome, foto)
+    const usuarioIds = topMontadoresRaw.map(m => m.usuario_id);
+    let usuariosMap = {};
+    if (usuarioIds.length > 0) {
+      const usuarios = await models.Usuario.findAll({
+        where: { id: { [Op.in]: usuarioIds } },
+        attributes: ['id', 'nome', 'foto_perfil'],
+        raw: true
+      });
+      usuariosMap = usuarios.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
+    }
+
+    const topMontadores = topMontadoresRaw.map(m => ({
+      id: m.usuario_id,
+      nome: usuariosMap[m.usuario_id]?.nome || 'Desconhecido',
+      foto_perfil: usuariosMap[m.usuario_id]?.foto_perfil || null,
+      qtd_servicos: Number(m.qtd_servicos) || 0,
+      valor_total: Number(m.valor_total) || 0
+    }));
+
     res.json({
       success: true,
       data: {
@@ -339,12 +409,16 @@ router.get('/', async (req, res) => {
         },
         equipe: {
           montadores_ativos: montadoresAtivos,
-          total_montadores: totalMontadores
+          total_montadores: totalMontadores,
+          clientes_ativos: clientesAtivos,
+          lojas_ativas: lojasAtivas
         },
         graficos: {
           receitas_por_tipo: receitasData,
-          despesas_mensais: despesasMensais
-        }
+          despesas_mensais: despesasMensais,
+          despesas_por_categoria: despesasPorCategoria
+        },
+        top_montadores: topMontadores
       }
     });
   } catch (error) {

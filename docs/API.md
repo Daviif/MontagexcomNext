@@ -159,7 +159,7 @@ Listar serviços
     "servicos": [
       {
         "id": "uuid",
-        "codigo_servico": "SRV-2024-001",
+        "codigo_os_loja": "SRV-2024-001",
         "data_servico": "2024-02-13",
         "tipo_cliente": "loja",
         "cliente_nome": "Móveis Alfa",

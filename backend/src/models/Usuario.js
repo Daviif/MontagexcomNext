@@ -49,6 +49,9 @@ module.exports = (sequelize, DataTypes) => {
     },
     updated_at: {
       type: DataTypes.DATE
+    },
+    Telefone: {
+      type: DataTypes.STRING(20)
     }
   }, {
     tableName: 'usuarios',

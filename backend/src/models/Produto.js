@@ -27,6 +27,16 @@ module.exports = (sequelize, DataTypes) => {
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
+    },
+    categoria: {
+      type: DataTypes.STRING(50),
+      allowNull: false
+    },
+    codigo: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      autoIncrement: true,
+    primaryKey: true,
     }
   }, {
     tableName: 'produtos',

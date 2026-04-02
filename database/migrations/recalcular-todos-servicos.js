@@ -44,7 +44,7 @@ async function recalcularTodosServicos() {
 
       // Buscar serviços da loja
       const servicosResult = await client.query(`
-        SELECT id, codigo_servico, valor_total, valor_repasse_montagem
+        SELECT id, codigo_os_loja, valor_total, valor_repasse_montagem
         FROM servicos
         WHERE loja_id = $1 AND tipo_cliente = 'loja'
         ORDER BY data_servico DESC

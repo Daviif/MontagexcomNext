@@ -45,7 +45,7 @@ async function testarRecalculoAutomatico() {
       return;
     }
 
-    console.log(`   ✅ Serviço encontrado: ${servico.codigo_servico}`);
+    console.log(`   ✅ Serviço encontrado: ${servico.codigo_os_loja}`);
     console.log(`   Valor Total: R$ ${servico.valor_total}`);
     console.log(`   Valor Repasse Atual: R$ ${servico.valor_repasse_montagem}`);
     console.log(`   Montadores: ${servico.servicoMontadores?.length || 0}\n`);

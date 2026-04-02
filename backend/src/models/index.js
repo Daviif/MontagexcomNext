@@ -29,8 +29,8 @@ EquipeMembro.belongsTo(Usuario, { foreignKey: 'usuario_id' });
 
 Loja.hasMany(Servico, { foreignKey: 'loja_id' });
 ClienteParticular.hasMany(Servico, { foreignKey: 'cliente_particular_id' });
-Servico.belongsTo(Loja, { foreignKey: 'loja_id' });
-Servico.belongsTo(ClienteParticular, { foreignKey: 'cliente_particular_id' });
+Servico.belongsTo(Loja, { foreignKey: 'loja_id', as: 'Loja' });
+Servico.belongsTo(ClienteParticular, { foreignKey: 'cliente_particular_id', as: 'ClienteParticular' });
 
 Loja.hasMany(Produto, { foreignKey: 'loja_id' });
 Produto.belongsTo(Loja, { foreignKey: 'loja_id' });
@@ -87,9 +87,7 @@ Usuario.hasMany(Despesa, { foreignKey: 'responsavel_id' });
 Despesa.belongsTo(Usuario, { foreignKey: 'responsavel_id', as: 'responsavel' });
 
 Servico.hasMany(Despesa, { foreignKey: 'servico_id' });
-Rota.hasMany(Despesa, { foreignKey: 'rota_id' });
 Despesa.belongsTo(Servico, { foreignKey: 'servico_id' });
-Despesa.belongsTo(Rota, { foreignKey: 'rota_id' });
 
 module.exports = {
   sequelize,

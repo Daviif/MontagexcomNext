@@ -26,9 +26,6 @@ module.exports = (sequelize, DataTypes) => {
     servico_id: {
       type: DataTypes.UUID
     },
-    rota_id: {
-      type: DataTypes.UUID
-    }
   }, {
     tableName: 'despesas',
     timestamps: false
