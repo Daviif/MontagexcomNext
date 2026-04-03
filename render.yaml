@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: montagex-api
+    env: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false  # preencher no painel do Render
+      - key: JWT_SECRET
+        sync: false  # preencher no painel do Render
+      - key: CORS_ORIGIN
+        sync: false  # URL do Netlify, ex: https://montagex.netlify.app
+      - key: DB_LOGGING
+        value: "false"

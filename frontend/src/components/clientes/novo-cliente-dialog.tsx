@@ -1,0 +1,247 @@
+'use client'
+
+import { useState } from 'react'
+import { Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Loader2 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { api } from '@/services/api'
+import { toast } from 'sonner'
+
+interface NovoClienteDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSuccess: () => void
+}
+
+export function NovoClienteDialog({ open, onOpenChange, onSuccess }: NovoClienteDialogProps) {
+  const [loading, setLoading] = useState(true)
+  const [cep, setCep] = useState('')
+
+  const [ formData, setFormData] = useState({
+    nome: '',
+    telefone: '',
+    email: '',
+    observacoes: ''
+  })
+
+  const [endereco, setEndereco] = useState({
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+  })
+  const buscarCep = async () => {
+    if (cep.length < 8) return
+    
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep.replace('-', '')}/json/`)
+      const data = await response.json()
+      
+      if (!data.erro) {
+        setEndereco({
+          logradouro: data.logradouro || '',
+          numero: '',
+          complemento: '',
+          bairro: data.bairro || '',
+          cidade: data.localidade || '',
+          estado: data.uf || '',
+        })
+      }
+    } catch (error) {
+      console.error('Erro ao buscar CEP:', error)
+    }
+  }
+
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setLoading(true)
+      const enderecoString = [
+        endereco.logradouro,
+        endereco.numero,
+        endereco.complemento,
+        endereco.bairro,
+        endereco.cidade,
+        endereco.estado,
+        cep
+      ]
+        .filter(Boolean)
+        .join(', ')
+
+      const payload = {
+        ...formData,
+        endereco: enderecoString
+      }
+      await api.post('/clientes_particulares', payload)
+      toast.success('Cliente cadastrado com sucesso!')
+      onSuccess()
+      onOpenChange(false)
+
+      setFormData({ nome: '', telefone: '', email: '', observacoes: '' })
+      setEndereco({ logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '' })
+      setCep('')
+    } catch (error) {
+      console.error(error)
+      toast.error('Erro ao cadastrar cliente')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+  return (
+    <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Carregando detalhes...</p>
+    </div>
+  )
+}
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle>Novo Cliente Particular</DialogTitle>
+          <DialogDescription>
+            Cadastre um novo cliente particular no sistema
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit}>
+          <ScrollArea className="h-[50vh] pr-4">
+            <FieldGroup>
+              {/* Dados Pessoais */}
+              <Field>
+                <FieldLabel>Nome Completo</FieldLabel>
+                <Input placeholder="Nome do cliente"
+                  value={formData.nome}
+                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                  required
+                />
+              </Field>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel>Telefone</FieldLabel>
+                  <Input placeholder="(00) 00000-0000"
+                    value={formData.telefone}
+                    onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                    required
+                  />
+                </Field>
+              </div>
+
+              <Field>
+                <FieldLabel>Email (opcional)</FieldLabel>
+                <Input type="email" placeholder="email@exemplo.com" />
+              </Field>
+
+              {/* Endereco */}
+              <div className="border-t border-border pt-4 mt-4">
+                <h3 className="text-sm font-medium mb-4">Endereco</h3>
+                
+                <Field>
+                  <FieldLabel>CEP</FieldLabel>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="00000-000"
+                      value={cep}
+                      onChange={(e) => setCep(e.target.value)}
+                      className="max-w-[200px]"
+                    />
+                    <Button type="button" variant="outline" onClick={buscarCep}>
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </Field>
+
+                <Field>
+                  <FieldLabel>Logradouro</FieldLabel>
+                  <Input
+                    placeholder="Rua, Avenida, etc."
+                    value={endereco.logradouro}
+                    onChange={(e) => setEndereco({ ...endereco, logradouro: e.target.value })}
+                  />
+                </Field>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <Field>
+                    <FieldLabel>Numero</FieldLabel>
+                    <Input
+                      placeholder="123"
+                      value={endereco.numero}
+                      onChange={(e) => setEndereco({ ...endereco, numero: e.target.value })}
+                    />
+                  </Field>
+                  <Field className="col-span-2">
+                    <FieldLabel>Complemento</FieldLabel>
+                    <Input
+                      placeholder="Apto, Bloco, etc."
+                      value={endereco.complemento}
+                      onChange={(e) => setEndereco({ ...endereco, complemento: e.target.value })}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <Field>
+                    <FieldLabel>Bairro</FieldLabel>
+                    <Input
+                      placeholder="Bairro"
+                      value={endereco.bairro}
+                      onChange={(e) => setEndereco({ ...endereco, bairro: e.target.value })}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Cidade</FieldLabel>
+                    <Input
+                      placeholder="Cidade"
+                      value={endereco.cidade}
+                      onChange={(e) => setEndereco({ ...endereco, cidade: e.target.value })}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Estado</FieldLabel>
+                    <Input
+                      placeholder="UF"
+                      value={endereco.estado}
+                      onChange={(e) => setEndereco({ ...endereco, estado: e.target.value })}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Observacoes */}
+              <Field>
+                <FieldLabel>Observacoes (opcional)</FieldLabel>
+                <Textarea placeholder="Informacoes adicionais sobre o cliente..." />
+              </Field>
+            </FieldGroup>
+          </ScrollArea>
+
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit">Cadastrar Cliente</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

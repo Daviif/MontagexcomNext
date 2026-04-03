@@ -1,0 +1,171 @@
+import { useState, useEffect } from 'react'
+import { api } from '@/services/api'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Switch } from '@/components/ui/switch'
+import { Loader2 } from 'lucide-react'
+import { Montador } from '@/lib/types'
+
+interface EditarMontadorDialogProps {
+	open: boolean
+	onOpenChange: (open: boolean) => void
+	montador: Montador | null
+	onSuccess: () => void
+}
+
+export function EditarMontadorDialog({ open, onOpenChange, montador, onSuccess }: EditarMontadorDialogProps) {
+	const [loading, setLoading] = useState(false)
+	const [formData, setFormData] = useState({
+		nome: '',
+		email: '',
+		Telefone: '',
+		percentual_salario: '',
+		meta_mensal: '',
+		chave_pix: '',
+		ativo: true
+	})
+
+	useEffect(() => {
+		if (montador) {
+			setFormData({
+				nome: montador.nome || '',
+				email: montador.email || '',
+				Telefone: String(montador.Telefone)|| '',
+				percentual_salario: String(montador.percentual_salario ?? ''),
+				meta_mensal: montador.meta_mensal ? String(montador.meta_mensal) : '',
+				chave_pix: montador.chave_pix || '',
+				ativo: montador.ativo ?? true
+			})
+		}
+	}, [montador, open])
+
+	const handleChange = (field: string, value: string | number | boolean) => {
+		setFormData(prev => ({ ...prev, [field]: value }))
+	}
+
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault()
+		if (!montador) return
+		try {
+			setLoading(true)
+			const payload = {
+				nome: formData.nome,
+				email: formData.email,
+				Telefone: formData.Telefone,
+				percentual_salario: Number(formData.percentual_salario),
+				meta_mensal: formData.meta_mensal ? Number(formData.meta_mensal) : null,
+				chave_pix: formData.chave_pix,
+				ativo: formData.ativo
+			}
+			await api.put(`/usuarios/${montador.id}`, payload)
+			toast.success('Montador atualizado com sucesso!')
+			onSuccess()
+			onOpenChange(false)
+		} catch (err) {
+			toast.error('Erro ao atualizar montador')
+			console.error('Erro ao atualizar montador:', err)
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	if (loading) {
+		return (
+			<div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
+				<Loader2 className="h-8 w-8 animate-spin text-primary" />
+				<p className="text-sm text-muted-foreground">Salvando alterações...</p>
+			</div>
+		)
+	}
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="max-w-lg max-h-[90vh]">
+				<DialogHeader>
+					<DialogTitle>Editar Montador</DialogTitle>
+					<DialogDescription>Altere os dados do montador</DialogDescription>
+				</DialogHeader>
+				<form onSubmit={handleSubmit}>
+					<ScrollArea className="h-[50vh] pr-4">
+						<FieldGroup>
+							{/* Dados Pessoais */}
+							<Field>
+								<FieldLabel>Nome Completo</FieldLabel>
+								<Input required placeholder="Nome do montador" value={formData.nome}
+									onChange={e => handleChange('nome', e.target.value)} />
+							</Field>
+							<div className="grid grid-cols-2 gap-4">
+								<Field>
+									<FieldLabel>Email</FieldLabel>
+									<Input type="email" placeholder="email@exemplo.com" value={formData.email}
+										onChange={e => handleChange('email', e.target.value)} />
+								</Field>
+								<Field>
+									<FieldLabel>Telefone</FieldLabel>
+									<Input placeholder="(00) 00000-0000" value={formData.Telefone}
+										onChange={e => handleChange('Telefone', e.target.value)} />
+								</Field>
+							</div>
+							{/* Configurações de Salário */}
+							<div className="border-t border-border pt-4 mt-4">
+								<h3 className="text-sm font-medium mb-4">Configurações de Salário</h3>
+								<div className="grid grid-cols-2 gap-4">
+									<Field>
+										<FieldLabel>Percentual do Salário</FieldLabel>
+										<div className="relative">
+											<Input type="number" placeholder="45" min="0" max="100" value={formData.percentual_salario}
+												onChange={e => handleChange('percentual_salario', e.target.value)} />
+											<span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+										</div>
+										<p className="text-xs text-muted-foreground mt-1">Percentual que o montador recebe por serviço</p>
+									</Field>
+									<Field>
+										<FieldLabel>Meta Mensal</FieldLabel>
+										<div className="relative">
+											<span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
+											<Input type="number" placeholder="10000" className="pl-10" value={formData.meta_mensal}
+												onChange={e => handleChange('meta_mensal', e.target.value)} />
+										</div>
+									</Field>
+								</div>
+								<Field>
+									<FieldLabel>Chave PIX (opcional)</FieldLabel>
+									<Input placeholder="CPF, Email, Telefone ou Chave Aleatória" value={formData.chave_pix}
+										onChange={e => handleChange('chave_pix', e.target.value)} />
+									<p className="text-xs text-muted-foreground mt-1">Utilizada para pagamento de salários</p>
+								</Field>
+							</div>
+							{/* Status */}
+							<div className="border-t border-border pt-4 mt-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium">Montador Ativo</p>
+										<p className="text-xs text-muted-foreground">Montadores inativos não podem receber novas ordens de serviço</p>
+									</div>
+									<Switch checked={formData.ativo} onCheckedChange={v => handleChange('ativo', v)} />
+								</div>
+							</div>
+						</FieldGroup>
+					</ScrollArea>
+					<DialogFooter className="mt-4">
+						<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+							Cancelar
+						</Button>
+						<Button type="submit">Salvar Alterações</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	)
+}
