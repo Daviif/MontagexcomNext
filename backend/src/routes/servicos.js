@@ -7,6 +7,40 @@ const router = express.Router();
 
 router.use(authorizeServicoWrite);
 
+const normalizeCodigoOsLoja = (value) => {
+  if (value == null) {
+    return value;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value).trim();
+  }
+
+  if (Array.isArray(value)) {
+    const first = value[0];
+
+    if (first == null) {
+      return '';
+    }
+
+    if (typeof first === 'string' || typeof first === 'number') {
+      return String(first).trim();
+    }
+
+    if (typeof first === 'object' && first.codigo_os_loja != null) {
+      return String(first.codigo_os_loja).trim();
+    }
+
+    return '';
+  }
+
+  if (typeof value === 'object' && value.codigo_os_loja != null) {
+    return String(value.codigo_os_loja).trim();
+  }
+
+  return String(value).trim();
+};
+
 // GET all servicos
 router.get('/', async (req, res, next) => {
   try {
@@ -27,7 +61,8 @@ router.get('/', async (req, res, next) => {
       ...options,
       include: [
         { model: models.Loja, as: 'Loja', attributes: ['id', 'nome_fantasia', 'cnpj', 'endereco'] },
-        { model: models.ClienteParticular, as: 'ClienteParticular', attributes: ['id', 'nome', 'endereco'] }
+        { model: models.ClienteParticular, as: 'ClienteParticular', attributes: ['id', 'nome', 'endereco'] },
+        { model: models.ServicoMontador, as: 'montadores', include: [{ model: models.Usuario , attributes: ['id', 'nome']}, { model: models.Equipe }] },
       ]
     });
     res.json(results);
@@ -60,7 +95,12 @@ router.get('/:id', async (req, res, next) => {
 // POST (create)
 router.post('/', async (req, res, next) => {
   try {
-    const created = await models.Servico.create(req.body);
+    const payload = {
+      ...req.body,
+      codigo_os_loja: normalizeCodigoOsLoja(req.body?.codigo_os_loja)
+    };
+
+    const created = await models.Servico.create(payload);
     res.status(201).json(created);
   } catch (err) {
     next(err);
@@ -74,7 +114,13 @@ router.put('/:id', async (req, res, next) => {
     if (!existing) {
       return res.status(404).json({ error: 'Not found' });
     }
-    const updated = await existing.update(req.body);
+
+    const payload = {
+      ...req.body,
+      codigo_os_loja: normalizeCodigoOsLoja(req.body?.codigo_os_loja)
+    };
+
+    const updated = await existing.update(payload);
     res.json(updated);
   } catch (err) {
     next(err);

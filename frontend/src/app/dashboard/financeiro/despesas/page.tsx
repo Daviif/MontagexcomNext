@@ -161,7 +161,7 @@ export default function DespesasPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">
-              R$ {totalGeral.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}
+              {totalGeral.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}
             </div>
           </CardContent>
         </Card>

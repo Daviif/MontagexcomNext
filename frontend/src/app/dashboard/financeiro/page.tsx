@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import {useState, useEffect} from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { api } from '@/services/api'
 import {
   DollarSign,
@@ -14,34 +14,68 @@ import {
   ArrowDownRight,
   Users,
   Building2,
-  Loader2
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { mockDashboardData, mockSalarios, mockDespesas, mockLojas } from '@/lib/mock-data'
 import { RevenueBarChart, DonutChart } from '@/components/dashboard/charts'
-import { cn } from '@/lib/utils'
-import { DashboardData, Salario, despesa, lojas } from '@/lib/types'
+import { DashboardData, Salario, lojas, clientes_particulares, GraficoItem } from '@/lib/types'
 
 export default function FinanceiroPage() {
   const [data, setData] = useState <DashboardData | null>(null)
   const [salarios, setSalarios] = useState<Salario[]>([])
   const [lojas, setLojas] = useState<lojas[]>([])
+  const [clientes, setClientes] = useState<clientes_particulares[]>([])
   const [loading, setLoading] = useState(true)
+  const [mesSelecionado, setMesSelecionado] = useState(() => {
+    const hoje = new Date()
+    return new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+  })
+
+  const mesAtual = useMemo(() => {
+    const hoje = new Date()
+    return new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+  }, [])
+
+  const podeAvancarMes = useMemo(() => {
+    return mesSelecionado.getTime() < mesAtual.getTime()
+  }, [mesSelecionado, mesAtual])
+
+  const tituloMesSelecionado = useMemo(() => {
+    return mesSelecionado.toLocaleDateString('pt-BR', {
+      month: 'long',
+      year: 'numeric'
+    })
+  }, [mesSelecionado])
+
+  const periodoSelecionado = useMemo(() => {
+    return {
+      mes: mesSelecionado.toLocaleDateString('pt-BR', { month: 'short' }),
+      ano: mesSelecionado.getFullYear(),
+    }
+  }, [mesSelecionado])
   
 
   useEffect(() => {
     async function fetchFinanceiro(){
       try {
         setLoading(true)
-        const [dashboardRes, salariosRes, lojasRes] = await Promise.all([
-          api.get('/dashboard'), // Ajuste para sua rota de estatísticas
+        const ano = mesSelecionado.getFullYear()
+        const mes = mesSelecionado.getMonth() + 1
+
+        const [dashboardRes, salariosRes, lojasRes, clientesRes] = await Promise.all([
+          api.get('/dashboard', { params: { ano, mes } }),
           api.get('/pagamentos_funcionarios'), 
-          api.get('/lojas')
+          api.get('/lojas'),
+          api.get('/clientes_particulares')
         ])
 
         const raw = dashboardRes.data?.data ?? dashboardRes.data
-                
+        console.log('Resposta bruta do dashboard:', raw)
+
         const dash: DashboardData = {
           financeiro: {
           receitaTotal: raw.financeiro?.total_recebido ?? 0,
@@ -63,28 +97,33 @@ export default function FinanceiroPage() {
             lojasAtivas: raw.equipe?.lojas_ativas ?? 0,
           },
           graficos: {
-            receitasPorTipo: (raw.graficos?.receitas_por_tipo ?? []).map((item: any) => ({
+            receitasPorTipo: (raw.graficos?.receitas_por_tipo ?? []).map((item: GraficoItem) => ({
             tipo: item.name || item.tipo_cliente || 'Outros',
             valor: item.value ?? item.valor ?? 0,
             value: item.value ?? item.valor ?? 0
             })),
-            receitaMensal: (raw.graficos?.despesas_mensais ?? []).map((item: any) => ({
+            receitaMensal: (raw.graficos?.despesas_mensais ?? []).map((item: GraficoItem) => ({
               mes: item.name || item.mes || '-',
               receita: item.receita ?? 0,
               despesa: item.despesas ?? item.despesa ?? 0
             })),
-            despesasPorCategoria: (raw.graficos?.despesas_por_categoria ?? []).map((item: any) => ({
+            despesasPorCategoria: (raw.graficos?.despesas_por_categoria ?? []).map((item: GraficoItem) => ({
               categoria: item.categoria || item.name || 'Geral',
               valor: item.value ?? item.valor ?? 0,
               value: item.value ?? item.valor ?? 0
             })),
             servicosPorStatus: [],
          },
-          periodo: raw.periodo ?? {},
+          periodo: {
+            mes: periodoSelecionado.mes,
+            ano: periodoSelecionado.ano,
+          },
         }
         setData(dash)
+        console.log('Dados do DashboardData:', dash)
         setSalarios(salariosRes.data?.data ?? salariosRes.data ?? [])
         setLojas(lojasRes.data?.data ?? lojasRes.data ?? [])
+        setClientes(clientesRes.data?.data ?? clientesRes.data ?? [])
       } catch (error) {
         console.error('Erro ao carregar dados financeiros:', error)
       } finally {
@@ -92,7 +131,9 @@ export default function FinanceiroPage() {
       }
     }
     fetchFinanceiro()
-  }, [])
+  }, [mesSelecionado, periodoSelecionado])
+
+ 
 
   if (loading || !data) {
     return (
@@ -109,8 +150,6 @@ export default function FinanceiroPage() {
     value: item.valor,
   })) || []
 
-  const receitaMensal = data?.graficos?.receitaMensal || []
-
   const salariosPendentes = salarios
     .filter(s => s.status === 'pendente')
     .reduce((acc, s) => acc + Number(s.valorLiquido || 0), 0)
@@ -124,11 +163,38 @@ export default function FinanceiroPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Financeiro</h1>
-        <p className="text-muted-foreground">
-          Visao geral das financas da empresa
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Financeiro</h1>
+          <p className="text-muted-foreground">
+            Visao geral das financas da empresa
+          </p>
+        </div>
+        <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-card p-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setMesSelecionado((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+            aria-label="Ver mes anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex min-w-[170px] items-center justify-center gap-2 px-2 text-sm font-medium capitalize">
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            <span>{tituloMesSelecionado}</span>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setMesSelecionado((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+            disabled={!podeAvancarMes}
+            aria-label="Ver proximo mes"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Cards Principais */}
@@ -281,7 +347,7 @@ export default function FinanceiroPage() {
                   </div>
                   <div>
                     <p className="font-medium">Lojas Parceiras</p>
-                    <p className="text-xs text-muted-foreground">12 lojas ativas</p>
+                    <p className="text-xs text-muted-foreground">{lojas.length} lojas ativas</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -298,7 +364,7 @@ export default function FinanceiroPage() {
                   </div>
                   <div>
                     <p className="font-medium">Clientes Particulares</p>
-                    <p className="text-xs text-muted-foreground">45 clientes</p>
+                    <p className="text-xs text-muted-foreground">{clientes.length} clientes</p>
                   </div>
                 </div>
                 <div className="text-right">

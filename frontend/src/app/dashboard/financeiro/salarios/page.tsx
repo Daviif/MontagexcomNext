@@ -122,14 +122,14 @@ export default function SalariosTab() {
               <div className="py-12 text-center text-muted-foreground italic">Nenhum serviço concluído este mês</div>
             ) : (
               filteredMontadores.map((montador) => {
-                const isExpanded = expandedMontadores.has(montador.id)
+                const isExpanded = expandedMontadores.has(montador.usuario_id)
                 return (
                   <div key={montador.id}>
                     <button
                       onClick={() => {
                         const next = new Set(expandedMontadores)
-                        if (isExpanded) next.delete(montador.id)
-                        else next.add(montador.id)
+                        if (isExpanded) next.delete(montador.usuario_id)
+                        else next.add(montador.usuario_id)
                         setExpandedMontadores(next)
                       }}
                       className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors px-6"

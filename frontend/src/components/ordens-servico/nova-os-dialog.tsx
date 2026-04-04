@@ -151,7 +151,7 @@ export function NovaOSDialog({ open, onOpenChange, initialData }: NovaOSDialogPr
       // Reset para nova OS limpa
       setClienteId('')
       setProdutos([])
-      setCodigoOsLoja([])
+      setCodigoOsLoja('')
       setMontadoresSelecionados([])
       setObservacoes('')
       setDataServico('')
@@ -288,7 +288,12 @@ export function NovaOSDialog({ open, onOpenChange, initialData }: NovaOSDialogPr
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
                       <FieldLabel>Código OS</FieldLabel>
-                      <Input placeholder='5897' value={codigo_os_loja[0]?.codigo_os_loja} className="bg-muted" />
+                      <Input
+                        placeholder='5897'
+                        value={codigoOsLoja}
+                        onChange={e => setCodigoOsLoja(e.target.value)}
+                        className="bg-muted"
+                      />
                     </Field>
                     <Field>
                       <FieldLabel>Status Inicial</FieldLabel>

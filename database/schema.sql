@@ -1,353 +1,253 @@
--- =====================================================
--- EXTENSIONS
--- =====================================================
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- =====================================================
--- USUARIOS
--- =====================================================
-
-CREATE TABLE usuarios (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nome VARCHAR(120) NOT NULL,
-    email VARCHAR(120) UNIQUE,
-    senha_hash TEXT,
-    tipo VARCHAR(20) CHECK (tipo IN ('admin','montador')),
-    percentual_salario NUMERIC(5,2) DEFAULT 50,
-    ativo BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT now(),
-    updated_at TIMESTAMP
+CREATE TABLE public.clientes_particulares (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nome character varying NOT NULL,
+  telefone character varying,
+  endereco text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT clientes_particulares_pkey PRIMARY KEY (id)
 );
-
-CREATE INDEX idx_usuarios_tipo ON usuarios(tipo);
-
--- =====================================================
--- CONFIGURACOES DO SISTEMA
--- =====================================================
-
-CREATE TABLE configuracoes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    chave VARCHAR(100) UNIQUE NOT NULL,
-    valor TEXT,
-    descricao TEXT,
-    tipo VARCHAR(50), -- 'texto', 'numero', 'percentual', 'formula'
-    updated_at TIMESTAMP DEFAULT now()
+CREATE TABLE public.configuracoes (
+  id integer NOT NULL DEFAULT nextval('configuracoes_id_seq'::regclass),
+  chave character varying NOT NULL UNIQUE,
+  valor text,
+  descricao text,
+  tipo character varying,
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT configuracoes_pkey PRIMARY KEY (id)
 );
-
--- Inserir configurações padrão
-INSERT INTO configuracoes (chave, valor, descricao, tipo) VALUES
-('salario_formula', 'valor_montagem', 'Fórmula para cálculo de salário: valor_montagem, valor_montagem * 1.1, etc', 'formula'),
-('salario_base_padrao', '0', 'Valor base adicional ao salário (além das montagens)', 'numero');
-
--- =====================================================
--- EQUIPES
--- =====================================================
-
-CREATE TABLE equipes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nome VARCHAR(100) NOT NULL,
-    ativa BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT now()
+CREATE TABLE public.despesas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  descricao text NOT NULL,
+  categoria character varying,
+  valor numeric NOT NULL,
+  data_despesa date NOT NULL,
+  responsavel_id uuid,
+  servico_id uuid,
+  CONSTRAINT despesas_pkey PRIMARY KEY (id),
+  CONSTRAINT despesas_responsavel_id_fkey FOREIGN KEY (responsavel_id) REFERENCES public.usuarios(id)
 );
-
--- =====================================================
--- EQUIPE_MEMBROS
--- =====================================================
-
-CREATE TABLE equipe_membros (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    equipe_id UUID NOT NULL REFERENCES equipes(id) ON DELETE CASCADE,
-    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT now(),
-    UNIQUE (equipe_id, usuario_id)
+CREATE TABLE public.equipe_membros (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  equipe_id uuid NOT NULL,
+  usuario_id uuid NOT NULL,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT equipe_membros_pkey PRIMARY KEY (id),
+  CONSTRAINT equipe_membros_equipe_id_fkey FOREIGN KEY (equipe_id) REFERENCES public.equipes(id),
+  CONSTRAINT equipe_membros_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
 );
-
-CREATE INDEX idx_equipe_membros_equipe ON equipe_membros(equipe_id);
-CREATE INDEX idx_equipe_membros_usuario ON equipe_membros(usuario_id);
-
--- =====================================================
--- LOJAS
--- =====================================================
-
-CREATE TABLE lojas (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nome VARCHAR(150) NOT NULL,
-    cnpj VARCHAR(18),
-    razao_social VARCHAR(150),
-    nome_fantasia VARCHAR(150),
-    telefone VARCHAR(20),
-    email VARCHAR(120),
-    endereco TEXT,
-    prazo_pagamento_dias INT,
-    
-    -- Configuração de cálculo de repasse
-    usa_porcentagem BOOLEAN DEFAULT false,
-    porcentagem_repasse NUMERIC(5,2), -- Ex: 5.00 para 5%
-    observacoes_pagamento TEXT,
-    
-    created_at TIMESTAMP DEFAULT now()
+CREATE TABLE public.equipes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nome character varying NOT NULL,
+  ativa boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT equipes_pkey PRIMARY KEY (id)
 );
-
--- =====================================================
--- CLIENTES PARTICULARES
--- =====================================================
-
-CREATE TABLE clientes_particulares (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nome VARCHAR(150) NOT NULL,
-    telefone VARCHAR(20),
-    endereco TEXT,
-    created_at TIMESTAMP DEFAULT now()
+CREATE TABLE public.lojas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  telefone character varying,
+  email character varying,
+  endereco text,
+  prazo_pagamento_dias integer,
+  usa_porcentagem boolean DEFAULT false,
+  porcentagem_repasse numeric,
+  observacoes_pagamento text,
+  created_at timestamp without time zone DEFAULT now(),
+  cnpj character varying,
+  razao_social character varying,
+  nome_fantasia character varying,
+  CONSTRAINT lojas_pkey PRIMARY KEY (id)
 );
-
--- =====================================================
--- PRODUTOS
--- =====================================================
-
-CREATE TABLE produtos (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nome VARCHAR(150) NOT NULL,
-    loja_id UUID NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
-    valor_base NUMERIC(10,2),
-    tempo_base_min INT NOT NULL,
-    ativo BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT now()
+CREATE TABLE public.pagamento_funcionario_anexos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  pagamento_funcionario_id uuid NOT NULL,
+  nome_arquivo character varying NOT NULL,
+  extensao character varying,
+  tipo_mime character varying,
+  tamanho_bytes bigint,
+  caminho_arquivo text NOT NULL,
+  descricao text,
+  criado_em timestamp without time zone DEFAULT now(),
+  criado_por uuid,
+  CONSTRAINT pagamento_funcionario_anexos_pkey PRIMARY KEY (id),
+  CONSTRAINT pagamento_funcionario_anexos_pagamento_funcionario_id_fkey FOREIGN KEY (pagamento_funcionario_id) REFERENCES public.pagamentos_funcionarios(id),
+  CONSTRAINT pagamento_funcionario_anexos_criado_por_fkey FOREIGN KEY (criado_por) REFERENCES public.usuarios(id)
 );
-
-CREATE UNIQUE INDEX idx_produtos_loja_nome ON produtos(loja_id, nome);
-CREATE INDEX idx_produtos_ativo ON produtos(ativo);
-
--- =====================================================
--- SERVICOS
--- =====================================================
-
-CREATE TABLE servicos (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    codigo_os_loja VARCHAR(50),
-    data_servico DATE NOT NULL,
-
-    tipo_cliente VARCHAR(20) 
-        CHECK (tipo_cliente IN ('loja','particular')),
-
-    loja_id UUID REFERENCES lojas(id),
-    cliente_particular_id UUID REFERENCES clientes_particulares(id),
-
-    endereco_execucao TEXT NOT NULL,
-
-    latitude NUMERIC(9,6),
-    longitude NUMERIC(9,6),
-
-    prioridade INT DEFAULT 0,
-
-    janela_inicio TIME,
-    janela_fim TIME,
-
-    valor_total NUMERIC(10,2),
-    valor_repasse_montagem NUMERIC(10,2), -- Valor que será distribuído aos montadores
-
-    status VARCHAR(20)
-        CHECK (status IN ('agendado','em_rota','concluido','cancelado')),
-
-    observacoes TEXT,
-
-    created_at TIMESTAMP DEFAULT now(),
-    updated_at TIMESTAMP,
-
-    CHECK (
-        (tipo_cliente = 'loja' AND loja_id IS NOT NULL AND cliente_particular_id IS NULL)
-        OR
-        (tipo_cliente = 'particular' AND cliente_particular_id IS NOT NULL AND loja_id IS NULL)
-    )
+CREATE TABLE public.pagamentos_funcionarios (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  usuario_id uuid NOT NULL,
+  servico_id uuid NOT NULL,
+  valor numeric NOT NULL,
+  data_pagamento date,
+  status character varying,
+  categoria character varying DEFAULT 'salario'::character varying,
+  origem character varying DEFAULT 'servico'::character varying,
+  valor_pago numeric DEFAULT 0,
+  data_vencimento date,
+  observacoes text,
+  responsavel_id uuid,
+  CONSTRAINT pagamentos_funcionarios_pkey PRIMARY KEY (id),
+  CONSTRAINT pagamentos_funcionarios_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id),
+  CONSTRAINT pagamentos_funcionarios_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),
+  CONSTRAINT pagamentos_funcionarios_responsavel_id_fkey FOREIGN KEY (responsavel_id) REFERENCES public.usuarios(id)
 );
-
-CREATE INDEX idx_servicos_data ON servicos(data_servico);
-CREATE INDEX idx_servicos_status ON servicos(status);
-CREATE INDEX idx_servicos_loja ON servicos(loja_id);
-
--- =====================================================
--- SERVICO_PRODUTOS
--- =====================================================
-
-CREATE TABLE servico_produtos (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE CASCADE,
-    produto_id UUID NOT NULL REFERENCES produtos(id),
-    quantidade INT NOT NULL,
-    valor_unitario NUMERIC(10,2),
-    utilizar_desconto BOOLEAN DEFAULT FALSE,
-    valor_desconto NUMERIC(10,2) DEFAULT 0,
-    valor_total NUMERIC(10,2)
+CREATE TABLE public.pagamentos_funcionarios_baixas (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  pagamento_funcionario_id uuid NOT NULL,
+  valor numeric NOT NULL CHECK (valor > 0::numeric),
+  data_pagamento date NOT NULL,
+  forma_pagamento character varying,
+  observacoes text,
+  responsavel_id uuid,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT pagamentos_funcionarios_baixas_pkey PRIMARY KEY (id),
+  CONSTRAINT pagamentos_funcionarios_baixas_pagamento_funcionario_id_fkey FOREIGN KEY (pagamento_funcionario_id) REFERENCES public.pagamentos_funcionarios(id),
+  CONSTRAINT pagamentos_funcionarios_baixas_responsavel_id_fkey FOREIGN KEY (responsavel_id) REFERENCES public.usuarios(id)
 );
-
-CREATE INDEX idx_servico_produtos_servico ON servico_produtos(servico_id);
-
--- =====================================================
--- SERVICO_EXTRAS
--- =====================================================
-
-CREATE TABLE servico_extras (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE CASCADE,
-    descricao  VARCHAR(200) NOT NULL,
-    valor      NUMERIC(10,2) NOT NULL DEFAULT 0,
-    observacao TEXT,
-    created_at TIMESTAMP DEFAULT now()
+CREATE TABLE public.produtos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nome character varying NOT NULL,
+  valor_base numeric,
+  tempo_base_min integer NOT NULL,
+  ativo boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT now(),
+  loja_id uuid,
+  categoria character varying,
+  codigo integer NOT NULL DEFAULT nextval('produtos_codigo_seq'::regclass),
+  CONSTRAINT produtos_pkey PRIMARY KEY (id),
+  CONSTRAINT produtos_loja_id_fkey FOREIGN KEY (loja_id) REFERENCES public.lojas(id)
 );
-
-CREATE INDEX idx_servico_extras_servico ON servico_extras(servico_id);
-
--- =====================================================
--- SERVICO_MONTADORES
--- =====================================================
-
-CREATE TABLE servico_montadores (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE CASCADE,
-    
-    -- Pode ser montador individual OU equipe
-    usuario_id UUID REFERENCES usuarios(id),
-    equipe_id UUID REFERENCES equipes(id),
-    
-    -- Valor atribuído a este montador/equipe
-    valor_atribuido NUMERIC(10,2) NOT NULL,
-    percentual_divisao NUMERIC(5,2), -- Percentual dentro do serviço (ex: 70% principal, 30% auxiliar)
-    
-    papel VARCHAR(20) CHECK (papel IN ('principal','auxiliar')),
-    
-    created_at TIMESTAMP DEFAULT now(),
-    
-    CHECK (
-        usuario_id IS NOT NULL
-        OR
-        equipe_id IS NOT NULL
-    )
+CREATE TABLE public.recebimentos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  servico_id uuid NOT NULL,
+  valor numeric NOT NULL,
+  data_prevista date,
+  data_recebimento date,
+  status character varying CHECK (status::text = ANY (ARRAY['pendente'::character varying::text, 'recebido'::character varying::text])),
+  forma_pagamento character varying,
+  observacoes text,
+  CONSTRAINT recebimentos_pkey PRIMARY KEY (id),
+  CONSTRAINT recebimentos_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id)
 );
-
-CREATE INDEX idx_servico_montadores_servico ON servico_montadores(servico_id);
-CREATE INDEX idx_servico_montadores_usuario ON servico_montadores(usuario_id);
-CREATE INDEX idx_servico_montadores_equipe ON servico_montadores(equipe_id);
-
--- =====================================================
--- ROTAS
--- =====================================================
-
-CREATE TABLE rotas (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    data DATE NOT NULL,
-    equipe_id UUID NOT NULL REFERENCES equipes(id),
-
-    horario_inicio TIME NOT NULL,
-    horario_fim TIME NOT NULL,
-
-    status VARCHAR(20)
-        CHECK (status IN ('planejada','em_andamento','finalizada')),
-
-    km_total NUMERIC(8,2),
-    tempo_total_min INT,
-
-    created_at TIMESTAMP DEFAULT now()
+CREATE TABLE public.rota_servicos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  rota_id uuid NOT NULL,
+  servico_id uuid NOT NULL,
+  ordem integer NOT NULL,
+  horario_previsto_chegada time without time zone,
+  horario_previsto_saida time without time zone,
+  tempo_deslocamento_min integer,
+  tempo_montagem_calculado_min integer,
+  CONSTRAINT rota_servicos_pkey PRIMARY KEY (id),
+  CONSTRAINT rota_servicos_rota_id_fkey FOREIGN KEY (rota_id) REFERENCES public.rotas(id),
+  CONSTRAINT rota_servicos_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id)
 );
-
-CREATE INDEX idx_rotas_data ON rotas(data);
-CREATE INDEX idx_rotas_equipe ON rotas(equipe_id);
-
--- =====================================================
--- ROTA_SERVICOS
--- =====================================================
-
-CREATE TABLE rota_servicos (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    rota_id UUID NOT NULL REFERENCES rotas(id) ON DELETE CASCADE,
-    servico_id UUID NOT NULL REFERENCES servicos(id),
-
-    ordem INT NOT NULL,
-
-    horario_previsto_chegada TIME,
-    horario_previsto_saida TIME,
-
-    tempo_deslocamento_min INT,
-    tempo_montagem_calculado_min INT,
-
-    UNIQUE (rota_id, servico_id)
+CREATE TABLE public.rotas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  data date NOT NULL,
+  equipe_id uuid,
+  horario_inicio time without time zone NOT NULL,
+  horario_fim time without time zone NOT NULL,
+  status character varying CHECK (status::text = ANY (ARRAY['planejada'::character varying::text, 'em_andamento'::character varying::text, 'finalizada'::character varying::text])),
+  km_total numeric,
+  tempo_total_min integer,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT rotas_pkey PRIMARY KEY (id),
+  CONSTRAINT rotas_equipe_id_fkey FOREIGN KEY (equipe_id) REFERENCES public.equipes(id)
 );
-
-CREATE INDEX idx_rota_servicos_rota ON rota_servicos(rota_id);
-CREATE INDEX idx_rota_servicos_ordem ON rota_servicos(rota_id, ordem);
-
--- =====================================================
--- RECEBIMENTOS
--- =====================================================
-
-CREATE TABLE recebimentos (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE CASCADE,
-    valor NUMERIC(10,2) NOT NULL,
-    data_prevista DATE,
-    data_recebimento DATE,
-    status VARCHAR(20)
-        CHECK (status IN ('pendente','recebido')),
-    forma_pagamento VARCHAR(30)
+CREATE TABLE public.servico_anexos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  servico_id uuid NOT NULL,
+  nome_arquivo character varying NOT NULL,
+  extensao character varying,
+  tipo_mime character varying,
+  tamanho_bytes bigint,
+  caminho_arquivo text NOT NULL,
+  descricao text,
+  criado_em timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  criado_por uuid,
+  CONSTRAINT servico_anexos_pkey PRIMARY KEY (id),
+  CONSTRAINT servico_anexos_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id),
+  CONSTRAINT fk_servico_anexos_usuario FOREIGN KEY (criado_por) REFERENCES public.usuarios(id)
 );
-
-CREATE INDEX idx_recebimentos_status ON recebimentos(status);
-CREATE INDEX idx_recebimentos_data_prevista ON recebimentos(data_prevista);
-
--- =====================================================
--- PAGAMENTOS FUNCIONARIOS
--- =====================================================
-
-CREATE TABLE pagamentos_funcionarios (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    usuario_id UUID NOT NULL REFERENCES usuarios(id),
-    servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE CASCADE,
-    valor NUMERIC(10,2) NOT NULL,
-    valor_pago NUMERIC(10,2) DEFAULT 0,
-    categoria VARCHAR(30) DEFAULT 'salario',
-    origem VARCHAR(30) DEFAULT 'servico',
-    data_vencimento DATE,
-    data_pagamento DATE,
-    observacoes TEXT,
-    responsavel_id UUID REFERENCES usuarios(id),
-    status VARCHAR(20)
+CREATE TABLE public.servico_extras (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  servico_id uuid NOT NULL,
+  descricao character varying NOT NULL,
+  valor numeric NOT NULL DEFAULT 0,
+  observacao text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT servico_extras_pkey PRIMARY KEY (id),
+  CONSTRAINT servico_extras_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id)
 );
-
-CREATE INDEX idx_pagamentos_usuario ON pagamentos_funcionarios(usuario_id);
-CREATE INDEX idx_pagamentos_status ON pagamentos_funcionarios(status);
-CREATE INDEX idx_pagamentos_data_vencimento ON pagamentos_funcionarios(data_vencimento);
-CREATE INDEX idx_pagamentos_responsavel ON pagamentos_funcionarios(responsavel_id);
-
-CREATE TABLE pagamentos_funcionarios_baixas (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    pagamento_funcionario_id UUID NOT NULL REFERENCES pagamentos_funcionarios(id) ON DELETE CASCADE,
-    valor NUMERIC(10,2) NOT NULL,
-    data_pagamento DATE NOT NULL,
-    forma_pagamento VARCHAR(30),
-    observacoes TEXT,
-    responsavel_id UUID REFERENCES usuarios(id),
-    created_at TIMESTAMP DEFAULT now(),
-    CHECK (valor > 0)
+CREATE TABLE public.servico_montadores (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  servico_id uuid NOT NULL,
+  usuario_id uuid,
+  equipe_id uuid,
+  valor_atribuido numeric NOT NULL,
+  percentual_divisao numeric,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT servico_montadores_pkey PRIMARY KEY (id),
+  CONSTRAINT servico_montadores_equipe_id_fkey FOREIGN KEY (equipe_id) REFERENCES public.equipes(id),
+  CONSTRAINT servico_montadores_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id),
+  CONSTRAINT servico_montadores_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
 );
-
-CREATE INDEX idx_pagamentos_baixas_pagamento ON pagamentos_funcionarios_baixas(pagamento_funcionario_id);
-CREATE INDEX idx_pagamentos_baixas_data ON pagamentos_funcionarios_baixas(data_pagamento);
-CREATE INDEX idx_pagamentos_baixas_responsavel ON pagamentos_funcionarios_baixas(responsavel_id);
-
--- =====================================================
--- DESPESAS
--- =====================================================
-
-CREATE TABLE despesas (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    descricao TEXT NOT NULL,
-    categoria VARCHAR(50),
-    valor NUMERIC(10,2) NOT NULL,
-    data_despesa DATE NOT NULL,
-    responsavel_id UUID REFERENCES usuarios(id),
-    servico_id UUID REFERENCES servicos(id) ON DELETE SET NULL,
-    rota_id UUID REFERENCES rotas(id) ON DELETE SET NULL
+CREATE TABLE public.servico_produtos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  servico_id uuid NOT NULL,
+  produto_id uuid NOT NULL,
+  quantidade integer NOT NULL,
+  valor_unitario numeric,
+  valor_total numeric,
+  utilizar_desconto boolean DEFAULT false,
+  valor_desconto numeric DEFAULT 0,
+  CONSTRAINT servico_produtos_pkey PRIMARY KEY (id),
+  CONSTRAINT servico_produtos_produto_id_fkey FOREIGN KEY (produto_id) REFERENCES public.produtos(id),
+  CONSTRAINT servico_produtos_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id)
 );
-
-CREATE INDEX idx_despesas_categoria ON despesas(categoria);
-CREATE INDEX idx_despesas_data ON despesas(data_despesa);
-CREATE INDEX idx_despesas_responsavel ON despesas(responsavel_id);
+CREATE TABLE public.servicos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  data_servico date NOT NULL,
+  tipo_cliente character varying CHECK (tipo_cliente::text = ANY (ARRAY['loja'::character varying::text, 'particular'::character varying::text])),
+  loja_id uuid,
+  cliente_particular_id uuid,
+  endereco_execucao text NOT NULL,
+  latitude numeric,
+  longitude numeric,
+  prioridade character varying DEFAULT 0,
+  janela_inicio time without time zone,
+  janela_fim time without time zone,
+  valor_total numeric,
+  valor_repasse_montagem numeric,
+  status character varying CHECK (status::text = ANY (ARRAY['agendada'::character varying, 'agendado'::character varying, 'em_rota'::character varying, 'concluido'::character varying, 'cancelado'::character varying]::text[])),
+  observacoes text,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone,
+  cliente_final_nome text,
+  cliente_final_contato character varying,
+  codigo_os_loja character varying,
+  CONSTRAINT servicos_pkey PRIMARY KEY (id),
+  CONSTRAINT servicos_cliente_particular_id_fkey FOREIGN KEY (cliente_particular_id) REFERENCES public.clientes_particulares(id),
+  CONSTRAINT servicos_loja_id_fkey FOREIGN KEY (loja_id) REFERENCES public.lojas(id)
+);
+CREATE TABLE public.usuarios (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nome character varying NOT NULL,
+  email character varying UNIQUE,
+  senha_hash text,
+  tipo character varying CHECK (tipo::text = ANY (ARRAY['admin'::character varying::text, 'montador'::character varying::text])),
+  ativo boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone,
+  foto_perfil text,
+  chave_pix text,
+  data_nascimento date,
+  habilitacao text,
+  meta_mensal numeric,
+  percentual_salario numeric DEFAULT 50,
+  Telefone character varying,
+  CONSTRAINT usuarios_pkey PRIMARY KEY (id)
+);

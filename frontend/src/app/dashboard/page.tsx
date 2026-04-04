@@ -19,7 +19,7 @@ import { RevenueBarChart, DonutChart } from '@/components/dashboard/charts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import type { DashboardData, OrdemServico, TopMontador } from '@/lib/types'
+import type { DashboardData, OrdemServico, TopMontador, GraficoItem} from '@/lib/types'
 
 const statusColors: Record<string, string> = {
   agendada: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
@@ -59,7 +59,7 @@ export default function DashboardPage() {
         ])
 
         const raw = dashboardRes.data?.data ?? dashboardRes.data
-        
+        console.log('Dados brutos do dashboard:', raw) // Log para depuração
         // Mapeamento seguro dos dados do backend
         const dash: DashboardData = {
           financeiro: {
@@ -82,17 +82,16 @@ export default function DashboardPage() {
             lojasAtivas: raw.equipe?.lojas_ativas ?? 0,
           },
           graficos: {
-            receitasPorTipo: (raw.graficos?.receitas_por_tipo ?? []).map((item: any) => ({
-              tipo: item.name || item.tipo_cliente || 'Outros',
-              valor: item.value ?? item.valor ?? 0,
+            receitasPorTipo: (raw.graficos?.receitas_por_tipo ?? []).map((item: GraficoItem) => ({
+              name: item.name || item.tipo_cliente || 'Outros',
               value: item.value ?? item.valor ?? 0
             })),
-            receitaMensal: (raw.graficos?.despesas_mensais ?? []).map((item: any) => ({
+            receitaMensal: (raw.graficos?.despesas_mensais ?? []).map((item: GraficoItem) => ({
               mes: item.name || item.mes || '-',
               receita: item.receita ?? 0,
               despesa: item.despesas ?? item.despesa ?? 0
             })),
-            despesasPorCategoria: (raw.graficos?.despesas_por_categoria ?? []).map((item: any) => ({
+            despesasPorCategoria: (raw.graficos?.despesas_por_categoria ?? []).map((item: GraficoItem) => ({
               categoria: item.categoria || item.name || 'Geral',
               valor: item.value ?? item.valor ?? 0,
               value: item.value ?? item.valor ?? 0
@@ -101,7 +100,8 @@ export default function DashboardPage() {
           },
           periodo: raw.periodo ?? {},
         }
-
+        
+        console.log('Dados do DashboardData:', dash)
         setDashboardData(dash)
         setOrdensServico(ordensRes.data?.data ?? ordensRes.data ?? [])
         setTopMontadores(Array.isArray(raw.top_montadores) ? raw.top_montadores : [])

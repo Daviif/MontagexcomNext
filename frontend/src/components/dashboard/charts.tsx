@@ -7,7 +7,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
@@ -42,24 +41,22 @@ export function RevenueBarChart({ data, title, description }: BarChartProps) {
           }}
           className="h-[300px] w-full"
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis 
-                dataKey="mes" 
-                tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-                axisLine={{ stroke: 'var(--border)' }}
-              />
-              <YAxis 
-                tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-                axisLine={{ stroke: 'var(--border)' }}
-                tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
-              />
-              <Tooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="receita" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="despesa" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <XAxis 
+              dataKey="mes" 
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+              axisLine={{ stroke: 'var(--border)' }}
+            />
+            <YAxis 
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+              axisLine={{ stroke: 'var(--border)' }}
+              tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+            />
+            <Tooltip content={<ChartTooltipContent />} />
+            <Bar dataKey="receita" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="despesa" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
+          </BarChart>
         </ChartContainer>
       </CardContent>
     </Card>
@@ -104,24 +101,22 @@ export function DonutChart({ data, title, description }: DonutChartProps) {
               )}
             className="h-[200px] w-[200px]"
           >
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                  <Pie
-                    data={safeData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                    {safeData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip content={<ChartTooltipContent />} />
-              </PieChart>
-            </ResponsiveContainer>
+            <PieChart>
+                <Pie
+                  data={safeData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={2}
+                dataKey="value"
+              >
+                  {safeData.map((_, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip content={<ChartTooltipContent />} />
+            </PieChart>
           </ChartContainer>
           <div className="flex flex-col gap-2 flex-1">
             {safeData.map((item, index) => (
@@ -172,35 +167,33 @@ export function TrendAreaChart({ data, title, description }: AreaChartProps) {
           }}
           className="h-[200px] w-full"
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis 
-                dataKey="name" 
-                tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-                axisLine={{ stroke: 'var(--border)' }}
-              />
-              <YAxis 
-                tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-                axisLine={{ stroke: 'var(--border)' }}
-              />
-              <Tooltip content={<ChartTooltipContent />} />
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="var(--chart-1)"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#colorValue)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <XAxis 
+              dataKey="name" 
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+              axisLine={{ stroke: 'var(--border)' }}
+            />
+            <YAxis 
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+              axisLine={{ stroke: 'var(--border)' }}
+            />
+            <Tooltip content={<ChartTooltipContent />} />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="var(--chart-1)"
+              strokeWidth={2}
+              fillOpacity={1}
+              fill="url(#colorValue)"
+            />
+          </AreaChart>
         </ChartContainer>
       </CardContent>
     </Card>

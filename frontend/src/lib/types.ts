@@ -1,6 +1,3 @@
-import { pagamentos_funcionarios_baixas } from './types';
-
-
 // Montador para leaderboard do dashboard
 export interface TopMontador {
   id: string
@@ -182,6 +179,10 @@ export interface OrdemServico {
   checkOutAt?: Date
   servico_montadores?: servico_montadores[]
   ServicoProdutos?: servico_produtos[]
+  janelaHorario?: {
+    inicio?: string
+    fim?: string
+  }
 }
 export interface servico_produtos{
   id: string
@@ -247,11 +248,15 @@ export interface DashboardData {
     lojasAtivas: number
   }
   graficos: {
-    receitasPorTipo: { tipo: string; valor: number }[]
+    receitasPorTipo: { name: string; value: number }[]
     despesasPorCategoria: { categoria: string; valor: number }[]
     servicosPorStatus: { status: string; quantidade: number }[]
     receitaMensal: { mes: string; receita: number; despesa: number }[]
   }
+  periodo: {
+    inicio: string;
+    fim: string;
+  };
 }
 
 export interface DetalheServico {
@@ -268,7 +273,7 @@ export interface DetalheServico {
 
 export interface MontadorCalculado {
   usuario_id: string;
-  id: string; // Adicionaremos via mapeamento se necessário, ou usamos usuario_id
+  id: string;
   nome: string;
   percentual_salario: number;
   servicos_realizados: number;
@@ -291,6 +296,19 @@ export interface DashboardSalariosResponse {
     total_valor_montagens: number;
     total_salarios: number;
   };
+
+}
+
+export interface GraficoItem {
+  name?: string
+  tipo_cliente?: string
+  categoria?: string
+  valor?: number
+  value?: number
+  mes?: string
+  receita?: number
+  despesas?: number
+  despesa?: number
 }
 
 export interface pagamentos_funcionarios_baixas {

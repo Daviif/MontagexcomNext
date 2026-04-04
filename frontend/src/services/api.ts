@@ -285,6 +285,23 @@ const getOfflineQueueStatus = () => {
   }
 }
 
+const shouldDiscardOfflineQueueItem = (item: OfflineQueueItem, error: unknown): boolean => {
+  const axiosError = error as AxiosError
+  const status = axiosError.response?.status
+
+  if (!status) {
+    return false
+  }
+
+  // DELETE com 404 significa que o recurso já não existe mais no servidor.
+  if (item.method === 'delete' && status === 404) {
+    return true
+  }
+
+  // Demais erros 4xx são irrecuperáveis para retry automático.
+  return status >= 400 && status < 500
+}
+
 const syncOfflineQueue = async () => {
   if (isSyncingOfflineQueue || isOffline()) {
     return
@@ -303,11 +320,13 @@ const syncOfflineQueue = async () => {
   dispatchOfflineQueueUpdate()
 
   const remaining = [...queue]
+  let hasBlockingError = false
 
   try {
     while (remaining.length) {
       const item = remaining[0]
 
+      try {
       await rawApi.request({
         method: item.method as Method,
         url: item.url,
@@ -323,18 +342,30 @@ const syncOfflineQueue = async () => {
       remaining.shift()
       saveOfflineQueue(remaining)
       dispatchOfflineQueueUpdate()
+      } catch (error) {
+        if (shouldDiscardOfflineQueueItem(item, error)) {
+          remaining.shift()
+          saveOfflineQueue(remaining)
+          dispatchOfflineQueueUpdate()
+          continue
+        }
+
+        if (remaining[0]) {
+          remaining[0].retries = (remaining[0].retries || 0) + 1
+          saveOfflineQueue(remaining)
+        }
+
+        const err = error as Error
+        lastOfflineSyncError = err.message || 'Falha ao sincronizar fila offline.'
+        hasBlockingError = true
+        break
+      }
     }
 
-    lastOfflineSyncAt = Date.now()
-    lastOfflineSyncError = null
-  } catch (error) {
-    if (remaining[0]) {
-      remaining[0].retries = (remaining[0].retries || 0) + 1
-      saveOfflineQueue(remaining)
+    if (!hasBlockingError) {
+      lastOfflineSyncAt = Date.now()
+      lastOfflineSyncError = null
     }
-
-    const err = error as Error
-    lastOfflineSyncError = err.message || 'Falha ao sincronizar fila offline.'
   } finally {
     isSyncingOfflineQueue = false
     dispatchOfflineQueueUpdate()

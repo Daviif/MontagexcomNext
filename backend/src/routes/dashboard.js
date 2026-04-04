@@ -55,10 +55,21 @@ const getMontadorServicoIds = async (usuarioId) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const hoje = new Date();
-    const { inicio: inicioMes, fim: fimMes } = getMonthRange(hoje);
+    const mesParam = Number.parseInt(req.query.mes, 10);
+    const anoParam = Number.parseInt(req.query.ano, 10);
 
-    const mesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    const dataAtual = new Date();
+    const mesReferencia = Number.isInteger(mesParam) && mesParam >= 1 && mesParam <= 12
+      ? mesParam - 1
+      : dataAtual.getMonth();
+    const anoReferencia = Number.isInteger(anoParam) && anoParam >= 2000 && anoParam <= 2100
+      ? anoParam
+      : dataAtual.getFullYear();
+
+    const referencia = new Date(anoReferencia, mesReferencia, 1);
+    const { inicio: inicioMes, fim: fimMes } = getMonthRange(referencia);
+
+    const mesAnterior = new Date(referencia.getFullYear(), referencia.getMonth() - 1, 1);
     const { inicio: inicioMesAnterior, fim: fimMesAnterior } = getMonthRange(mesAnterior);
 
     const isMontador = req.user?.tipo === 'montador';
@@ -166,7 +177,7 @@ router.get('/', async (req, res) => {
 
       const despesasMensais = [];
       for (let i = 5; i >= 0; i -= 1) {
-        const refDate = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        const refDate = new Date(referencia.getFullYear(), referencia.getMonth() - i, 1);
         const { inicio, fim } = getMonthRange(refDate);
         const totalMes = await sumField(models.Despesa, 'valor', {
           responsavel_id: usuarioId,
@@ -183,8 +194,8 @@ router.get('/', async (req, res) => {
         success: true,
         data: {
           periodo: {
-            mes: monthLabels[hoje.getMonth()],
-            ano: hoje.getFullYear()
+            mes: monthLabels[referencia.getMonth()],
+            ano: referencia.getFullYear()
           },
           financeiro: {
             total_recebido: parseFloat(totalRecebido.toFixed(2)),
@@ -312,7 +323,7 @@ router.get('/', async (req, res) => {
 
     const despesasMensais = [];
     for (let i = 5; i >= 0; i -= 1) {
-      const refDate = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+      const refDate = new Date(referencia.getFullYear(), referencia.getMonth() - i, 1);
       const { inicio, fim } = getMonthRange(refDate);
       const totalMes = await sumField(models.Despesa, 'valor', {
         data_despesa: { [Op.between]: [inicio, fim] }
@@ -391,8 +402,8 @@ router.get('/', async (req, res) => {
       success: true,
       data: {
         periodo: {
-          mes: monthLabels[hoje.getMonth()],
-          ano: hoje.getFullYear()
+          mes: monthLabels[referencia.getMonth()],
+          ano: referencia.getFullYear()
         },
         financeiro: {
           total_recebido: parseFloat(totalRecebido.toFixed(2)),

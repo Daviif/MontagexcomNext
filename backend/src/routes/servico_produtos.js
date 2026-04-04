@@ -23,12 +23,9 @@ router.get('/:id_servico', async (req, res, next) => {
 
 router.delete('/:id_servico', async (req, res, next) => {
   try {
-    const deleted = await models.ServicoProduto.destroy({
+    await models.ServicoProduto.destroy({
       where: { servico_id: req.params.id_servico }
     });
-    if (deleted === 0) {
-      return res.status(404).json({ error: 'Nenhum ServicoProduto encontrado para este serviço' });
-    }
     res.status(204).send();
   } catch (err) {
     next(err);

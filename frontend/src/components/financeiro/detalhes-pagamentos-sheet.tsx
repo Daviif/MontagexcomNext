@@ -21,7 +21,7 @@ import {
   AlertCircle,
   CheckCircle2
 } from 'lucide-react'
-import { lojas, OrdemServico, pagamentos_funcionarios, pagamentos_funcionarios_baixas, Usuario } from '@/lib/types'
+import { lojas, OrdemServico, pagamentos_funcionarios, pagamentos_funcionarios_baixas, Usuario, servico_montadores } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface DetalhesPagamentSheetProps {
@@ -38,7 +38,7 @@ export function DetalhesPagamentSheet({
   open,
   onOpenChange,
   loja,
-  servicosDaLoja,
+  servicosDaLoja, 
   baixasDaLoja,
   pagamentosDaLoja,
   usuarios,
@@ -52,100 +52,6 @@ export function DetalhesPagamentSheet({
     else next.add(id)
     setExpandedMontadores(next)
   }
-
-  // LÓGICA DE HIERARQUIA (Copiada do JSX: OS como fonte de verdade)
-  const hierarquia = useMemo(() => {
-    console.log('[DetalhesPagamentSheet] useMemo entrada', {
-      lojaId: loja?.id,
-      lojaNome: loja?.nome_fantasia,
-      totalServicos: servicosDaLoja.length,
-      totalBaixas: baixasDaLoja.length,
-      totalPagamentos: pagamentosDaLoja.length,
-      totalUsuarios: usuarios.length,
-    })
-
-    const montadoresMap = new Map<string, any>()
-
-    // 1. Mapeia o DEVIDO pelas OSs (Garante que o Davi apareça mesmo sem baixa)
-    servicosDaLoja.forEach(os => {
-      const equipe = os.servico_montadores || []
-
-      if (equipe.length === 0) {
-        console.log('[DetalhesPagamentSheet] OS sem montadores', {
-          servicoId: os.id,
-          numeroOS: os.codigo_os_loja || os.id.slice(0, 8),
-        })
-      }
-      
-      equipe.forEach(vinculo => {
-        const uId = vinculo.usuario.id
-        if (!uId) return
-
-        if (!montadoresMap.has(uId)) {
-          const u = usuarios.find(user => user.id === uId)
-          montadoresMap.set(uId, {
-            id: uId,
-            nome: u?.nome || 'Montador',
-            totalPrevisto: 0,
-            totalPago: 0,
-            totalSaldo: 0,
-            itens: []
-          })
-        }
-
-        const mGroup = montadoresMap.get(uId)
-        const valorAtribuido = Number(vinculo.valor_atribuido || 0)
-        
-        // Localiza se existe um registro de pagamento para cruzar com as baixas
-        const pgtoRelacionado = pagamentosDaLoja.find(p => 
-          p.servico_id === os.id && p.usuario_id === uId
-        )
-        
-        const valorPagoNesteServico = baixasDaLoja
-          .filter(b => b.pagamento_funcionario_id === pgtoRelacionado?.id)
-          .reduce((acc, curr) => acc + Number(curr.valor || 0), 0)
-
-        const saldo = Math.max(valorAtribuido - valorPagoNesteServico, 0)
-
-        if (!pgtoRelacionado) {
-          console.log('[DetalhesPagamentSheet] Pagamento não encontrado para vínculo', {
-            servicoId: os.id,
-            usuarioId: uId,
-            valorAtribuido,
-          })
-        }
-
-        mGroup.totalPrevisto += valorAtribuido
-        mGroup.totalPago += valorPagoNesteServico
-        mGroup.totalSaldo += saldo
-        
-        mGroup.itens.push({
-          id: os.id,
-          numeroOS: os.codigo_os_loja || os.id.slice(0, 8),
-          valorPrevisto: valorAtribuido,
-          valorPago: valorPagoNesteServico,
-          saldo: saldo,
-          status: valorPagoNesteServico >= valorAtribuido ? 'pago' : (valorPagoNesteServico > 0 ? 'parcial' : 'pendente')
-        })
-      })
-    })
-
-    const resultado = Array.from(montadoresMap.values()).sort((a, b) => a.nome.localeCompare(b.nome))
-
-    console.log('[DetalhesPagamentSheet] useMemo saída', {
-      totalMontadores: resultado.length,
-      resumo: resultado.map(m => ({
-        id: m.id,
-        nome: m.nome,
-        totalItens: m.itens.length,
-        totalPrevisto: m.totalPrevisto,
-        totalPago: m.totalPago,
-        totalSaldo: m.totalSaldo,
-      })),
-    })
-
-    return resultado
-  }, [servicosDaLoja, baixasDaLoja, pagamentosDaLoja, usuarios, loja])
 
   if (!loja) return null
 
@@ -169,15 +75,15 @@ export function DetalhesPagamentSheet({
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg border bg-muted/30 p-3 text-center">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase">Dívida Total</p>
-                <p className="text-sm font-bold">{hierarquia.reduce((acc, m) => acc + m.totalPrevisto, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                <p className="text-sm font-bold">{totalDividaOS.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
               </div>
               <div className="rounded-lg border bg-primary/5 p-3 text-center border-primary/20">
                 <p className="text-[10px] font-bold text-primary uppercase">Total Pago</p>
-                <p className="text-sm font-bold text-primary">{hierarquia.reduce((acc, m) => acc + m.totalPago, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                <p className="text-sm font-bold text-primary">{totalPagoBaixas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
               </div>
               <div className="rounded-lg border bg-orange-500/5 p-3 text-center border-orange-500/20">
                 <p className="text-[10px] font-bold text-orange-600 uppercase">Saldo</p>
-                <p className="text-sm font-bold text-orange-600">{hierarquia.reduce((acc, m) => acc + m.totalSaldo, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                <p className="text-sm font-bold text-orange-600">{totalSaldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
               </div>
             </div>
 
@@ -219,7 +125,7 @@ export function DetalhesPagamentSheet({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border/50">
-                              {m.itens.map((item: any) => (
+                              {m.itens.map((item) => (
                                 <tr key={item.id}>
                                   <td className="py-2 font-medium">{item.numeroOS}</td>
                                   <td className="py-2 text-right font-mono">{item.valorPrevisto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
