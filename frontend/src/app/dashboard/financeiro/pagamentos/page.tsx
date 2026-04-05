@@ -408,7 +408,8 @@ export default function PagamentosPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         loja={lojaSelecionada}
-        pagamentos={pagamentos.filter(p => mapaPagamentoParaLoja[p.id] === lojaSelecionada?.id)}
+        pagamentos={pagamentos}
+        servicosDaLoja={servicos.filter(s => s.loja_id === lojaSelecionada?.id)}
         baixas={baixas}
         usuarios={usuarios}
         onSuccess={fetchData}

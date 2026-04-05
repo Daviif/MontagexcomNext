@@ -72,7 +72,7 @@ export function NovaOSDialog({ open, onOpenChange, initialData }: NovaOSDialogPr
   const [clientes, setClientes] = useState<clientes_particulares[]>([])
   const [produtosDisponiveis, setProdutosDisponiveis] = useState<Produto[]>([])
   const [montadoresDisponiveis, setMontadoresDisponiveis] = useState<Montador[]>([])
-  const [codigo_os_loja, setCodigoOsLoja] = useState<OrdemServico[]>([])
+  const [codigoOsLoja, setCodigoOsLoja] = useState<OrdemServico[]>([])
   const [erro, setErro] = useState('')
 
   // 1. Busca dados básicos da API ao abrir

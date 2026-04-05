@@ -14,14 +14,10 @@ import { Separator } from '@/components/ui/separator'
 import { 
   Building2, 
   CalendarDays, 
-  DollarSign, 
-  User, 
   ChevronDown, 
-  ChevronRight,
-  AlertCircle,
-  CheckCircle2
+  ChevronRight
 } from 'lucide-react'
-import { lojas, OrdemServico, pagamentos_funcionarios, pagamentos_funcionarios_baixas, Usuario, servico_montadores } from '@/lib/types'
+import { lojas, OrdemServico, pagamentos_funcionarios, pagamentos_funcionarios_baixas, Usuario } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface DetalhesPagamentSheetProps {
@@ -43,6 +39,144 @@ export function DetalhesPagamentSheet({
   pagamentosDaLoja,
   usuarios,
 }: DetalhesPagamentSheetProps) {
+  const toNumber = (value: unknown) => {
+    const parsed = Number(value ?? 0)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+
+  const formatDateOnlyBR = (value: Date | string) => {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [year, month, day] = value.split('-').map(Number)
+      return new Date(year, month - 1, day).toLocaleDateString('pt-BR')
+    }
+
+    return new Date(value).toLocaleDateString('pt-BR')
+  }
+
+  const { totalDividaOS, totalPagoBaixas, totalSaldo, hierarquia } = useMemo(() => {
+    const servicosDaLojaIds = new Set(servicosDaLoja.map((servico) => servico.id))
+    const pagamentosPorId = new Map(pagamentosDaLoja.map((pagamento) => [pagamento.id, pagamento]))
+    const usuariosPorId = new Map(usuarios.map((usuario) => [usuario.id, usuario]))
+
+    const baixasPorServicoMontador = baixasDaLoja.reduce<Record<string, number>>((acc, baixa) => {
+      const pagamento = pagamentosPorId.get(baixa.pagamento_funcionario_id)
+      if (!pagamento || !servicosDaLojaIds.has(pagamento.servico_id)) {
+        return acc
+      }
+
+      const chave = `${pagamento.servico_id}::${pagamento.usuario_id}`
+      acc[chave] = (acc[chave] || 0) + toNumber(baixa.valor)
+      return acc
+    }, {})
+
+    const agrupadoPorMontador = new Map<
+      string,
+      {
+        id: string
+        nome: string
+        totalSaldo: number
+        itens: {
+          id: string
+          numeroOS: string
+          valorPrevisto: number
+          valorPago: number
+          status: 'pago' | 'pendente'
+        }[]
+      }
+    >()
+
+    servicosDaLoja.forEach((servico) => {
+      const montadoresRaw = Array.isArray(servico.servico_montadores) && servico.servico_montadores.length > 0
+        ? servico.servico_montadores
+        : (Array.isArray(servico.montadores) ? servico.montadores : [])
+
+      if (montadoresRaw.length === 0) return
+
+      const valorBaseServico = toNumber(servico.valor_total_repasse) || toNumber(servico.valor_total)
+      const valorFallbackPorMontador = montadoresRaw.length > 0 ? valorBaseServico / montadoresRaw.length : 0
+
+      montadoresRaw.forEach((registroMontador) => {
+        const montadorComUsuario = registroMontador as unknown as {
+          id?: string
+          usuario_id?: string
+          usuario?: { id?: string; nome?: string } | null
+          valor_atribuido?: number | string
+          percentual_divisao?: number | string
+          nome?: string
+        }
+
+        const usuarioId =
+          montadorComUsuario.usuario_id ||
+          montadorComUsuario.usuario?.id ||
+          montadorComUsuario.id
+
+        if (!usuarioId) return
+
+        const valorAtribuido = toNumber(montadorComUsuario.valor_atribuido)
+        const percentualDivisao = toNumber(montadorComUsuario.percentual_divisao)
+
+        const valorPrevisto =
+          valorAtribuido > 0
+            ? valorAtribuido
+            : percentualDivisao > 0
+              ? (valorBaseServico * percentualDivisao) / 100
+              : valorFallbackPorMontador
+
+        const chaveBaixa = `${servico.id}::${usuarioId}`
+        const valorPago = toNumber(baixasPorServicoMontador[chaveBaixa])
+        const saldo = Math.max(valorPrevisto - valorPago, 0)
+        const status = valorPrevisto <= 0 || saldo <= 0.009 ? 'pago' : 'pendente'
+
+        if (!agrupadoPorMontador.has(usuarioId)) {
+          const usuario = usuariosPorId.get(usuarioId)
+          agrupadoPorMontador.set(usuarioId, {
+            id: usuarioId,
+            nome: usuario?.nome || montadorComUsuario.usuario?.nome || montadorComUsuario.nome || 'Montador',
+            totalSaldo: 0,
+            itens: [],
+          })
+        }
+
+        const montador = agrupadoPorMontador.get(usuarioId)
+        if (!montador) return
+
+        montador.totalSaldo += saldo
+        montador.itens.push({
+          id: `${servico.id}-${usuarioId}`,
+          numeroOS: servico.codigo_os_loja || servico.id.slice(0, 8),
+          valorPrevisto,
+          valorPago,
+          status,
+        })
+      })
+    })
+
+    const hierarquiaCalculada = Array.from(agrupadoPorMontador.values())
+      .map((montador) => ({
+        ...montador,
+        itens: montador.itens.sort((a, b) => a.numeroOS.localeCompare(b.numeroOS)),
+      }))
+      .sort((a, b) => b.totalSaldo - a.totalSaldo)
+
+    const totalDivida = hierarquiaCalculada.reduce(
+      (acc, montador) =>
+        acc + montador.itens.reduce((subtotal, item) => subtotal + item.valorPrevisto, 0),
+      0
+    )
+    const totalPago = hierarquiaCalculada.reduce(
+      (acc, montador) =>
+        acc + montador.itens.reduce((subtotal, item) => subtotal + item.valorPago, 0),
+      0
+    )
+
+    return {
+      totalDividaOS: totalDivida,
+      totalPagoBaixas: totalPago,
+      totalSaldo: Math.max(totalDivida - totalPago, 0),
+      hierarquia: hierarquiaCalculada,
+    }
+  }, [servicosDaLoja, pagamentosDaLoja, baixasDaLoja, usuarios])
+
   // Controle de expansão (Lógica do JSX original adaptada)
   const [expandedMontadores, setExpandedMontadores] = useState<Set<string>>(new Set())
 
@@ -168,7 +302,7 @@ export function DetalhesPagamentSheet({
                       <div key={b.id} className="flex justify-between items-center p-3 rounded-lg border bg-card text-xs">
                         <div>
                           <p className="font-bold">{user?.nome || 'Montador'}</p>
-                          <p className="text-[10px] text-muted-foreground">{new Date(b.data_pagamento).toLocaleDateString('pt-BR')} • {b.forma_pagamento}</p>
+                          <p className="text-[10px] text-muted-foreground">{formatDateOnlyBR(b.data_pagamento)} • {b.forma_pagamento}</p>
                         </div>
                         <span className="font-mono font-bold text-primary">
                           {Number(b.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

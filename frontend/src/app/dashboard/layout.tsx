@@ -14,6 +14,7 @@ import {
   Receipt,
   CreditCard,
   DollarSign,
+  BarChart3,
   Settings,
   LogOut,
   Menu,
@@ -79,6 +80,12 @@ function SidebarContent({ onNavigate, ordensAgendadas }: { onNavigate?: () => vo
       { name: 'Despesas', href: '/dashboard/financeiro/despesas', icon: Receipt },
     ],
   },
+  {
+    title: 'Análise',
+    items: [
+      {name: 'Relatórios', href: '/dashboard/relatorio', icon: BarChart3},
+    ]
+  }
 ]
 
   return (
@@ -153,20 +160,20 @@ export default function DashboardLayout({
 
   useEffect(() => {
     async function fetchOrdens() {
-        try {
-          const res = await api.get('/servicos')
-          const ordens = res.data?.data ?? res.data ?? []
+      try {
+        const res = await api.get('/servicos')
+        const ordens = res.data?.data ?? res.data ?? []
 
-          const agendadas = ordens.filter((o: OrdemServico) => o.status === 'agendada')
+        const agendadas = ordens.filter((o: OrdemServico) => o.status === 'agendada')
 
-          setOrdensAgendadas(agendadas.length)
-        } catch (err) {
-          console.error('Erro ao buscar ordens:', err)
-        }
+        setOrdensAgendadas(agendadas.length)
+      } catch (err) {
+        console.error('Erro ao buscar ordens:', err)
       }
+    }
 
-      fetchOrdens()
-    }, [])
+    fetchOrdens()
+  }, [])
 
 
   return (

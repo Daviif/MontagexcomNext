@@ -1,353 +1,140 @@
-# 📦 Montagex - Sistema de Gestão de Montagem de Móveis
+# Montagex - Sistema de Gestao de Montagem de Moveis
 
-Um **sistema completo e profissional** para gerenciar montagem de móveis, incluindo agendamento, equipes, financeiro e muito mais!
+Sistema completo para operacao de montagem de moveis: agendamento, equipe, financeiro, rotas, salarios e relatorios.
 
-## 🎯 O Que é Montagex?
+## Visao Geral
 
-Montagex é uma plataforma integrada que auxilia empresas de manutenção e montagem de móveis a:
-- 📅 **Agendar serviços** com clientes (lojas e particulares)
-- 👥 **Gerenciar equipes** de montadores
-- 🗺️ **Otimizar rotas** e planejamento de deslocamento
-- 💰 **Controlar financeiro** (receitas, despesas, pagamentos)
-- 📊 **Acompanhar métricas** em tempo real
-- 💵 **Calcular salários** baseado em serviços realizados
-- 📈 **Gerar relatórios** detalhados
+O Montagex ajuda empresas de montagem a:
+- Agendar e acompanhar servicos (lojas e particulares)
+- Gerenciar montadores e equipes
+- Controlar recebimentos, pagamentos e despesas
+- Visualizar indicadores e relatorios operacionais/financeiros
 
-## 🏗️ Arquitetura
+## Arquitetura
 
-```
-┌─────────────────────────────────────────────────────┐
-│                   CLIENTE                            │
-├──────────────────────┬──────────────────────────────┤
-│  Frontend Desktop    │  Mobile                      │
-│  (React + Electron)  │  (React Native + Expo)       │
-└──────────────────────┴──────────────────────────────┘
-           │                    │
-           └──────────┬─────────┘
-                      │ HTTP/WebSocket
-           ┌──────────▼──────────┐
-           │   API Backend       │
-           │  (Node + Express)   │
-           └──────────┬──────────┘
-                      │
-           ┌──────────▼──────────┐
-           │  PostgreSQL + Redis │
-           │  (Banco de Dados)   │
-           └─────────────────────┘
-```
+- Frontend Web: Next.js + React + TypeScript + Tailwind CSS
+- Backend API: Node.js + Express + Sequelize
+- Banco de dados: PostgreSQL
+- Cache/tempo real: Redis + Socket.IO
 
-## 📁 Estrutura do Projeto
+## Estrutura Atual do Repositorio
 
-```
-Montagex-/
-├── backend/                    # 🔧 API REST + WebSocket
-│   ├── src/
-│   │   ├── models/            # Modelos Sequelize
-│   │   ├── routes/            # Rotas da API
-│   │   ├── middleware/        # Autenticação, cache
-│   │   ├── services/          # Lógica de negócio
-│   │   └── app.js             # Aplicação Express
-│   ├── package.json
-│   ├── .env.example
-│   └── README.md
-│
-├── frontend-desktop/           # 💻 Aplicação Desktop
-│   ├── src/
-│   │   ├── components/        # Componentes React
-│   │   ├── pages/             # Páginas da aplicação
-│   │   ├── contexts/          # Context API
-│   │   ├── hooks/             # Custom Hooks
-│   │   └── services/          # Cliente HTTP
-│   ├── package.json
-│   ├── vite.config.js
-│   └── README.md
-│
-├── mobile/                     # 📱 App Mobile (React Native + Expo)
-│   ├── src/
-│   │   ├── screens/           # Telas
-│   │   ├── components/        # Componentes
-│   │   ├── contexts/          # Auth, Theme
-│   │   ├── services/          # API, Socket
-│   │   └── navigation/        # Navegação
-│   ├── App.js
-│   ├── app.json
-│   ├── package.json
-│   ├── README.md
-│   └── QUICK-START.md
-│
-├── database/                   # 🗄️ Schemas SQL
-│   ├── schema.sql             # Schema principal
-│   └── migrations/
-│
-└── docs/                       # 📚 Documentação
-    ├── API.md                 # Referência da API
-    ├── ARQUITETURA.md         # Stack técnico
-    ├── SALARIOS-SISTEMA.md    # Sistema de salários
-    └── ...
+```text
+Montagex-Copia/
+|- backend/                  # API (Node/Express)
+|  |- src/
+|  |  |- models/             # Modelos Sequelize
+|  |  |- routes/             # Endpoints REST
+|  |  |- middleware/         # Auth, permissoes, etc.
+|  |  |- database/           # Migracoes/seeds/scripts
+|  |  |- utils/
+|  |  |- validators/
+|  |  |- app.js
+|  |  \- server.js
+|  \- package.json
+|
+|- frontend/                 # App principal (Next.js)
+|  |- src/
+|  |  |- app/                # App Router (paginas/layouts)
+|  |  |- components/         # UI e features
+|  |  |- lib/                # Tipos e utilitarios
+|  |  |- hooks/
+|  |  \- services/           # Cliente HTTP
+|  \- package.json
+|
+|- front1/                   # Outra base Next.js (apoio/prototipo)
+|- database/                 # schema.sql e migracoes SQL
+|- docs/                     # Documentacao funcional/tecnica
+\- README.md
 ```
 
-## 🚀 Iniciando Rápido
+## Tecnologias em Uso
 
 ### Backend
+- Node.js >= 18
+- Express 4.18
+- Sequelize 6.35
+- PostgreSQL (`pg`, `pg-hstore`)
+- Redis 4.6
+- Socket.IO 4.6
+- JWT (`jsonwebtoken`), `bcryptjs`
+- Seguranca: `helmet`, `cors`, `express-rate-limit`
+- Uploads: `multer`
+
+### Frontend (app principal em `frontend/`)
+- Next.js 16.2
+- React 19.2
+- TypeScript 5
+- Tailwind CSS v4
+- Radix UI + shadcn/ui
+- Recharts (graficos)
+- Axios (HTTP)
+- Sonner (toasts)
+- Lucide React (icones)
+
+## Como Rodar Localmente
+
+### 1) Backend
 
 ```bash
 cd backend
-
-# Instalar dependências
 npm install
-
-# Configurar banco de dados
 cp .env.example .env
-# Editar .env com suas credenciais
-
-# Executar migrações
+# ajustar variaveis do .env (Postgres/Redis/JWT)
 npm run migrate
-
-# Iniciar servidor
 npm run dev
-
-# Servidor rodando em http://localhost:3001
 ```
 
-### Frontend Desktop
+API padrao: `http://localhost:3000` (ou conforme `.env`).
+
+### 2) Frontend
 
 ```bash
-cd frontend-desktop
-
-# Instalar dependências
+cd frontend
 npm install
-
-# Iniciar desenvolvimento
 npm run dev
-
-# Abrir em http://localhost:5173
 ```
 
-## 🔑 Credenciais de Teste
+Frontend: `http://localhost:5173`.
 
-- **Email:** admin@montagex.com
-- **Senha:** admin123
+## Scripts Principais
 
-## ✨ Funcionalidades Principais
+### Backend (`backend/package.json`)
+- `npm run dev` -> sobe API com nodemon
+- `npm run start` -> sobe API em producao
+- `npm run migrate` -> executa migracoes
+- `npm run seed` -> executa seeds
+- `npm test` -> testes com Jest
 
-### ✅ Backend
-- [x] Modelos de dados completos (13 tabelas)
-- [x] Autenticação JWT
-- [x] CRUD genérico
-- [x] WebSocket para atualizações em tempo real
-- [x] Sistema de configurações globais
-- [x] Cálculo automático de salários
-- [x] Sistema de porcentagem de repasse
-- [x] API REST documentada
+### Frontend (`frontend/package.json`)
+- `npm run dev` -> Next dev na porta 5173
+- `npm run build` -> build de producao
+- `npm run start` -> servidor Next de producao
+- `npm run lint` -> lint do frontend
 
-### ✅ Frontend Desktop
-- [x] Login responsivo
-- [x] Dashboard com métricas e gráficos
-- [x] Menu lateral navigation
-- [x] 8 seções principais
-- [x] Design moderno e profissional
-- [x] Theme (light/dark completo)
-- [x] Modo offline com cache local (GET)
-- [x] Sincronização automática de fila offline (POST/PUT/DELETE)
-- [x] Autenticação protegida
-- [x] Integração com API
+## Funcionalidades Implementadas
 
-### 🚧 Em Desenvolvimento
-- [ ] Sistema de Relatórios (Desktop)
-- [ ] Configurações (Desktop)
-- [ ] CRUD/Telas de Novo Serviço (Mobile)
-- [ ] CRUD/Telas de Equipes (Mobile)
-- [ ] CRUD/Telas de Financeiro (Mobile)
+- Autenticacao JWT
+- Dashboard operacional e financeiro
+- Gestao de OS, clientes, lojas, produtos, equipes e montadores
+- Modulo financeiro: salarios, pagamentos, despesas
+- Baixas de pagamentos com fluxo de criacao automatica de lancamento quando necessario
+- Relatorios (custos, lucro, producao, mensal, loja/cliente e produto)
 
-## 📊 Tecnologias
+## Documentacao
 
-### Backend
-- **Node.js 18+**
-- **Express 4.18+**
-- **PostgreSQL**
-- **Redis**
-- **Socket.io 4.6+**
-- **Sequelize 6.35+**
-- **JWT**
+- `docs/API.md`
+- `docs/ARQUITETURA.md`
+- `docs/SALARIOS-SISTEMA.md`
+- `docs/SISTEMA-RECALCULO-COMPLETO.md`
 
-### Frontend
-- **React 18**
-- **Vite 5**
-- **React Router 6**
-- **Recharts** (Gráficos)
-- **Axios** (HTTP)
-- **Electron 28** (Desktop)
-- **Socket.io Client**
-
-### Database
-- **PostgreSQL** (Dados principais)
-- **Redis** (Cache)
-- **UUID** (Identificadores)
-
-## 📚 Documentação
-
-- **[Backend README](./backend/README.md)** - Documentação do backend
-- **[Frontend README](./frontend-desktop/README.md)** - Documentação do frontend
-- **[API Docs](./docs/API.md)** - Referência completa da API
-- **[Arquitetura](./docs/ARQUITETURA.md)** - Stack técnico
-- **[Sistema de Salários](./docs/SALARIOS-SISTEMA.md)** - Cálculo de salários
-- **[Quick Start Frontend](./frontend-desktop/QUICK-START.md)** - Início rápido
-- **[Development Guide](./frontend-desktop/DEVELOPMENT.md)** - Guia para desenvolvedores
-
-## 🔄 Fluxo de Dados
-
-### Autenticação
-```
-Login → POST /auth/login → JWT Token → Armazenar em localStorage
-```
-
-### Dashboard
-```
-Frontend → GET /dashboard → Backend retorna métricas → Exibe gráficos e cards
-```
-
-### WebSocket (Tempo real)
-```
-Usuario conecta → Servidor emite eventos → Todos recebem atualização em tempo real
-Ex: Serviço concluído → Todos veem imediatamente
-```
-
-## 🗄️ Modelos de Dados
-
-### Tabelas principais
-1. **usuarios** - Admin e montadores
-2. **lojas** - Clientes comerciais
-3. **clientes_particulares** - Clientes residenciais
-4. **produtos** - Móveis para montar
-5. **servicos** - Serviços agendados/realizados
-6. **servico_montadores** - Atribuição de montadores a serviços
-7. **equipes** - Grupos de montadores
-8. **rotas** - Planejamento diário
-9. **recebimentos** - Pagamentos de clientes
-10. **pagamentos_funcionarios** - Salários
-11. **despesas** - Custos operacionais
-12. **configuracoes** - Configurações do sistema
-13. **Mais...**
-
-Veja [schema.sql](./database/schema.sql) para detalhes completos.
-
-## 💡 Diferenciais
-
-- 🔐 **Seguro** - JWT, senhas com bcrypt, validações SQL
-- ⚡ **Rápido** - Redis cache, otimização de queries
-- 📱 **Responsivo** - Mobile-first design
-- 🌍 **WebSocket** - Atualizações em tempo real
-- 💰 **Profissional** - Cálculo de salários e comissões
-- 📊 **Analytics** - Gráficos e relatórios
-- 🎨 **Moderno** - UI/UX profissional
-- 📖 **Documentado** - Código bem documentado
-
-## 🤝 Contribuindo
-
-Para contribuir com o projeto:
-
-1. **Fork** o repositório
-2. **Clone** seu fork: `git clone`
-3. **Crie uma branch**: `git checkout -b feature/MinhaFeature`
-4. **Commit** suas mudanças: `git commit -m 'Adiciona MinhaFeature'`
-5. **Push** a branch: `git push origin feature/MinhaFeature`
-6. **Abra um Pull Request**
-
-## 📋 Requisitos do Sistema
+## Requisitos
 
 - Node.js 18+
 - npm 9+
 - PostgreSQL 12+
-- Redis 6+ (opcional, para cache)
-- Git
+- Redis 6+ (recomendado)
 
-## 🚀 Deploy
+## Licenca
 
-### Backend (Heroku/Railway)
-```bash
-cd backend
-npm run build
-# Enviar para plataforma
-```
-
-### Frontend (Vercel/Netlify)
-```bash
-cd frontend-desktop
-npm run build
-# Fazer deploy de dist/
-```
-
-### Desktop (Distribuição)
-```bash
-cd frontend-desktop
-npm run electron-build
-# Gera .exe / .dmg / .AppImage
-```
-
-## 📊 Performance
-
-- ✅ SSR-ready
-- ✅ Gzip compression
-- ✅ Cache com Redis
-- ✅ Lazy loading
-- ✅ Code splitting
-- ✅ Otimizado para produção
-
-## 🔐 Segurança
-
-- ✅ JWT tokens
-- ✅ Bcrypt passwords
-- ✅ SQL injection prevention (Sequelize)
-- ✅ CORS configurado
-- ✅ Rate limiting
-- ✅ Input validation
-- ✅ HTTPS ready
-
-## 📞 Suporte
-
-- 📧 Email: suporte@montagex.com (futuro)
-- 📖 Documentação: Veja `/docs`
-- 🐛 Issues: GitHub issues
-
-## 📄 Licença
-
-Propripietary - Todos os direitos reservados
-
-## 👥 Equipe
-
-- **Backend:** Node.js + Express + PostgreSQL
-- **Frontend:** React + Vite + Electron
-- **Mobile:** React Native + Expo
-- **DevOps:** Docker + CI/CD (planejado)
-
----
-
-## 🎯 Roadmap
-
-### v1.0 (Atual)
-- ✅ Backend API completo
-- ✅ Frontend Desktop base
-- ✅ Autenticação
-- ✅ Dashboard
-- ✅ Sistema de salários
-
-### v1.1 (1-2 meses)
-- [ ] CRUD completo de todas as entidades
-- [ ] Relatórios detalhados
-- [x] Mobile app inicial
-
-### v1.2
-- [x] Modo offline (Desktop)
-- [x] Sincronização automática (Desktop)
-- [x] Dark mode completo
-
-### v2.0
-- [ ] AI/ML para otimização de rotas
-- [ ] Integrações com sistemas terceiros
-- [ ] API pública
-
----
-
-**Desenvolvido com ❤️ para revolucionar a gestão de montagem**
-
-Pronto para começar? Consulte os READMEs individuais! 🚀
+Uso proprietario (conforme politicas do projeto).
