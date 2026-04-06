@@ -1,11 +1,10 @@
 import Redis from 'ioredis'
 import { env } from './env'
 import { logger } from './logger'
+import { redisConnectionOptions } from './redis-options'
 
 const redisBaseConfig = {
-  // Obrigatório para BullMQ — workers tentam reconectar indefinidamente
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
+  ...redisConnectionOptions,
   retryStrategy: (times: number) => {
     const delay = Math.min(times * 100, 3000)
     logger.warn({ attempt: times, delay }, 'Redis reconectando...')

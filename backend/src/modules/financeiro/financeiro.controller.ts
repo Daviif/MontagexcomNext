@@ -41,3 +41,20 @@ export async function dashboard(req: Request, res: Response, next: NextFunction)
     res.json(resumo)
   } catch (err) { next(err) }
 }
+
+export async function uploadComprovante(req: Request, res: Response, next: NextFunction) {
+  try {
+    const arquivo = req.file
+
+    if (!arquivo) {
+      res.status(422).json({
+        code: 'VALIDATION_ERROR',
+        message: 'Arquivo de comprovante é obrigatório no campo "arquivo".',
+      })
+      return
+    }
+
+    const result = await service.uploadComprovante(firstParam(req.params.id), arquivo)
+    res.status(201).json(result)
+  } catch (err) { next(err) }
+}

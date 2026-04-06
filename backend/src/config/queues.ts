@@ -2,12 +2,10 @@ import { Queue } from 'bullmq'
 import Redis from 'ioredis'
 import { env } from './env'
 import { logger } from './logger'
+import { redisConnectionOptions } from './redis-options'
 
-// Conexão exclusiva para BullMQ (maxRetriesPerRequest: null obrigatório)
-const bullConnectionOptions = {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-}
+// Conexão exclusiva para BullMQ
+const bullConnectionOptions = { ...redisConnectionOptions }
 
 const bullConnection = env.REDIS_URL
   ? new Redis(env.REDIS_URL, bullConnectionOptions)
@@ -17,6 +15,10 @@ const bullConnection = env.REDIS_URL
       password: env.REDIS_PASSWORD || undefined,
       ...bullConnectionOptions,
     })
+
+bullConnection.on('error', (err) => {
+  logger.error({ err }, 'Redis BullMQ erro')
+})
 
 // ================================
 // DEFINIÇÃO DAS FILAS

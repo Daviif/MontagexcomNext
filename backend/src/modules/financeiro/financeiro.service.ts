@@ -1,11 +1,14 @@
 import { prisma } from '../../config/prisma'
 import { AppError } from '../../middlewares/error.middleware'
 import type { z } from 'zod'
+import fs from 'fs'
+import path from 'path'
 import type {
   criarTransacaoSchema,
   registrarBaixaSchema,
   listarFinanceiroQuerySchema,
 } from './financeiro.schema'
+import { nomeArquivo } from '../../utils/upload'
 
 type CriarTransacao = z.infer<typeof criarTransacaoSchema>
 type RegistrarBaixa = z.infer<typeof registrarBaixaSchema>
@@ -171,5 +174,30 @@ export async function resumoDashboard() {
     saldo: Number(entradas._sum.valorTotal ?? 0) - Number(saidas._sum.valorTotal ?? 0),
     vencendoHoje,
     osAbertas,
+  }
+}
+
+export async function uploadComprovante(transacaoId: string, file: Express.Multer.File) {
+  const transacao = await prisma.financeiroTransacao.findFirst({
+    where: { id: transacaoId, deletedAt: null },
+    select: { id: true },
+  })
+
+  if (!transacao) {
+    throw new AppError('Transação não encontrada', 404, 'NOT_FOUND')
+  }
+
+  const pastaComprovantes = path.resolve(process.cwd(), 'tmp', 'uploads', 'comprovantes')
+  fs.mkdirSync(pastaComprovantes, { recursive: true })
+
+  const arquivo = nomeArquivo(file.originalname, `transacao-${transacaoId}-`)
+  const caminho = path.join(pastaComprovantes, arquivo)
+  fs.writeFileSync(caminho, file.buffer)
+
+  return {
+    url: `/uploads/comprovantes/${arquivo}`,
+    nome_arquivo: arquivo,
+    tipo_mime: file.mimetype,
+    tamanho_bytes: file.size,
   }
 }

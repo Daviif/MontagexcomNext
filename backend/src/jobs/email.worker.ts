@@ -3,11 +3,9 @@ import Redis from 'ioredis'
 import { env } from '../config/env'
 import { logger } from '../config/logger'
 import type { EmailJobData } from '../config/queues'
+import { redisConnectionOptions } from '../config/redis-options'
 
-const workerConnectionOptions = {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-}
+const workerConnectionOptions = { ...redisConnectionOptions }
 
 const connection = env.REDIS_URL
   ? new Redis(env.REDIS_URL, workerConnectionOptions)

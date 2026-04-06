@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import http from 'http'
 import express from 'express'
+import path from 'path'
 import helmet from 'helmet'
 import cors from 'cors'
 import compression from 'compression'
@@ -12,6 +13,7 @@ import { logger } from './config/logger'
 import { connectDatabase, disconnectDatabase } from './config/prisma'
 import { connectRedis, redis } from './config/redis'
 import { initSocket } from './config/socket'
+import { authenticate } from './middlewares/auth.middleware'
 import { errorHandler } from './middlewares/error.middleware'
 
 // Workers BullMQ (iniciam ao importar)
@@ -24,6 +26,9 @@ import authRoutes from './modules/auth/auth.routes'
 import pessoasRoutes from './modules/pessoas/pessoas.routes'
 import ordensRoutes from './modules/ordens/ordens.routes'
 import financeiroRoutes from './modules/financeiro/financeiro.routes'
+import produtosRoutes from './modules/produtos/produtos.routes'
+import relatoriosRoutes from './modules/relatorios/relatorios.routes'
+import { dashboard as dashboardFinanceiro } from './modules/financeiro/financeiro.controller'
 
 async function bootstrap() {
   // ================================
@@ -42,6 +47,7 @@ async function bootstrap() {
   app.use(compression())
   app.use(express.json({ limit: '2mb' }))
   app.use(express.urlencoded({ extended: true }))
+  app.use('/uploads', express.static(path.resolve(process.cwd(), 'tmp', 'uploads')))
   app.use(pinoHttp({ logger }))
 
   // Rate limit nas rotas públicas sensíveis
@@ -63,7 +69,11 @@ async function bootstrap() {
   app.use('/api/auth', limiterPublico, authRoutes)
   app.use('/api/pessoas', pessoasRoutes)
   app.use('/api/ordens', ordensRoutes)
+  app.use('/api/servicos', ordensRoutes)
+  app.use('/api/produtos', produtosRoutes)
   app.use('/api/financeiro', financeiroRoutes)
+  app.use('/api/relatorios', relatoriosRoutes)
+  app.get('/api/dashboard', authenticate, dashboardFinanceiro)
 
   // Handler global de erros — deve ser o último middleware
   app.use(errorHandler)
