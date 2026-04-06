@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Pessoa {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipoPessoa       String             @map("tipo_pessoa") @db.VarChar(20)
+  nomeRazaoSocial  String             @map("nome_razao_social") @db.VarChar(255)
+  apelidoFantasia  String?            @map("apelido_fantasia") @db.VarChar(255)
+  documento        String?            @unique @db.VarChar(20)
+  email            String?            @db.VarChar(255)
+  telefone         String?            @db.VarChar(20)
+  ativo            Boolean            @default(true)
+  deletedAt        DateTime?          @map("deleted_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @default(now()) @map("updated_at")
+
+  enderecos        Endereco[]
+  colaboradorInfo  ColaboradorInfo?
+  produtos         Produto[]          @relation("ProdutoLoja")
+  ordensComoLoja   OrdemServico[]     @relation("OsLojaOrigem")
+  ordensComoCliente OrdemServico[]    @relation("OsClienteDestino")
+  historicosAlterados OsHistoricoStatus[] @relation("OsHistoricoAlteradoPor")
+  executaOrdens    OsExecutor[]       @relation("OsExecutorColaborador")
+  transacoesFinanceiras FinanceiroTransacao[] @relation("FinanceiroPessoa")
+
+  @@map("pessoas")
+}
+
+model Endereco {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pessoaId         String        @map("pessoa_id") @db.Uuid
+  rua              String?       @db.VarChar(255)
+  numero           String?       @db.VarChar(20)
+  complemento      String?       @db.VarChar(100)
+  bairro           String?       @db.VarChar(100)
+  cidade           String?       @db.VarChar(100)
+  estado           String?       @db.VarChar(50)
+  cep              String?       @db.VarChar(20)
+  latitude         Decimal?      @db.Decimal(10, 7)
+  longitude        Decimal?      @db.Decimal(10, 7)
+  deletedAt        DateTime?     @map("deleted_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  pessoa           Pessoa        @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  ordensExecucao   OrdemServico[] @relation("OsEnderecoExecucao")
+
+  @@index([pessoaId], map: "idx_endereco_pessoa")
+  @@index([cidade], map: "idx_endereco_cidade")
+  @@map("enderecos")
+}
+
+model ColaboradorInfo {
+  pessoaId         String    @id @map("pessoa_id") @db.Uuid
+  tipoColaborador  String?   @map("tipo_colaborador") @db.VarChar(20)
+  senhaHash        String    @map("senha_hash")
+  chavePix         String?   @map("chave_pix") @db.VarChar(100)
+  comissaoPadrao   Decimal   @default(50.00) @map("comissao_padrao") @db.Decimal(5, 2)
+  metaMensal       Decimal   @default(0) @map("meta_mensal") @db.Decimal(12, 2)
+
+  pessoa           Pessoa    @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+
+  @@map("colaboradores_info")
+}
+
+model Produto {
+  id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lojaId              String      @map("loja_id") @db.Uuid
+  skuExterno          String?     @map("sku_externo") @db.VarChar(50)
+  nome                String      @db.VarChar(255)
+  valorMontagemBase   Decimal     @map("valor_montagem_base") @db.Decimal(12, 2)
+  tempoEstimadoMinutos Int        @default(60) @map("tempo_estimado_minutos")
+  deletedAt           DateTime?   @map("deleted_at")
+  createdAt           DateTime    @default(now()) @map("created_at")
+
+  loja                Pessoa      @relation("ProdutoLoja", fields: [lojaId], references: [id])
+  itensOs             OsItem[]
+
+  @@unique([lojaId, skuExterno])
+  @@index([lojaId], map: "idx_produto_loja")
+  @@map("produtos")
+}
+
+model OrdemServico {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigoRastreio     String               @unique @default(dbgenerated("'OS-'::text || to_char(now(), 'YYYYMMDD'::text) || '-'::text || upper(substr(gen_random_uuid()::text, 1, 6))")) @map("codigo_rastreio") @db.VarChar(20)
+  lojaOrigemId       String?              @map("loja_origem_id") @db.Uuid
+  clienteDestinoId   String               @map("cliente_destino_id") @db.Uuid
+  enderecoExecucaoId String?              @map("endereco_execucao_id") @db.Uuid
+  statusFluxo        String               @default("RASCUNHO") @map("status_fluxo") @db.VarChar(30)
+  dataProgramada     DateTime?            @map("data_programada")
+  valorVendaTotal    Decimal              @default(0) @map("valor_venda_total") @db.Decimal(12, 2)
+  valorCustoMontagem Decimal              @default(0) @map("valor_custo_montagem") @db.Decimal(12, 2)
+  observacoes        String?
+  deletedAt          DateTime?            @map("deleted_at")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @default(now()) @map("updated_at")
+
+  lojaOrigem         Pessoa?              @relation("OsLojaOrigem", fields: [lojaOrigemId], references: [id])
+  clienteDestino     Pessoa               @relation("OsClienteDestino", fields: [clienteDestinoId], references: [id])
+  enderecoExecucao   Endereco?            @relation("OsEnderecoExecucao", fields: [enderecoExecucaoId], references: [id])
+  itens              OsItem[]
+  executores         OsExecutor[]
+  historicoStatus    OsHistoricoStatus[]
+  transacoes         FinanceiroTransacao[]
+
+  @@index([clienteDestinoId], map: "idx_os_cliente")
+  @@index([statusFluxo], map: "idx_os_status")
+  @@index([lojaOrigemId], map: "idx_os_loja")
+  @@map("ordens_servico")
+}
+
+model OsHistoricoStatus {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  osId           String       @map("os_id") @db.Uuid
+  statusAnterior String?      @map("status_anterior") @db.VarChar(30)
+  statusNovo     String       @map("status_novo") @db.VarChar(30)
+  alteradoPorId  String?      @map("alterado_por") @db.Uuid
+  alteradoEm     DateTime     @default(now()) @map("alterado_em")
+  observacao     String?
+
+  os             OrdemServico @relation(fields: [osId], references: [id], onDelete: Cascade)
+  alteradoPor    Pessoa?      @relation("OsHistoricoAlteradoPor", fields: [alteradoPorId], references: [id])
+
+  @@index([osId], map: "idx_historico_os")
+  @@index([alteradoEm], map: "idx_historico_data")
+  @@map("os_historico_status")
+}
+
+model OsItem {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  osId               String       @map("os_id") @db.Uuid
+  produtoId          String?      @map("produto_id") @db.Uuid
+  descricaoManual    String?      @map("descricao_manual")
+  quantidade         Int
+  valorUnitarioNaData Decimal     @map("valor_unitario_na_data") @db.Decimal(12, 2)
+
+  os                 OrdemServico @relation(fields: [osId], references: [id], onDelete: Cascade)
+  produto            Produto?     @relation(fields: [produtoId], references: [id])
+
+  @@index([osId], map: "idx_itens_os")
+  @@map("os_itens")
+}
+
+model OsExecutor {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  osId                  String       @map("os_id") @db.Uuid
+  colaboradorId         String       @map("colaborador_id") @db.Uuid
+  percentualParticipacao Decimal     @default(100.00) @map("percentual_participacao") @db.Decimal(5, 2)
+  valorComissaoFinal    Decimal?     @map("valor_comissao_final") @db.Decimal(12, 2)
+  ehResponsavel         Boolean      @default(false) @map("eh_responsavel")
+
+  os                    OrdemServico @relation(fields: [osId], references: [id], onDelete: Cascade)
+  colaborador           Pessoa       @relation("OsExecutorColaborador", fields: [colaboradorId], references: [id])
+
+  @@unique([osId, colaboradorId])
+  @@index([osId], map: "idx_exec_os")
+  @@map("os_executores")
+}
+
+model FinanceiroTransacao {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  osId             String?           @map("os_id") @db.Uuid
+  pessoaId         String            @map("pessoa_id") @db.Uuid
+  tipoTransacao    String            @map("tipo_transacao") @db.VarChar(10)
+  categoria        String?           @db.VarChar(50)
+  descricao        String?
+  valorTotal       Decimal           @map("valor_total") @db.Decimal(12, 2)
+  dataVencimento   DateTime          @map("data_vencimento") @db.Date
+  statusPagamento  String            @default("ABERTO") @map("status_pagamento") @db.VarChar(20)
+  deletedAt        DateTime?         @map("deleted_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  pessoa           Pessoa            @relation("FinanceiroPessoa", fields: [pessoaId], references: [id])
+  ordemServico     OrdemServico?     @relation(fields: [osId], references: [id])
+  baixas           FinanceiroBaixa[]
+
+  @@index([pessoaId], map: "idx_financeiro_pessoa")
+  @@index([statusPagamento], map: "idx_financeiro_status")
+  @@index([osId], map: "idx_financeiro_os")
+  @@index([dataVencimento], map: "idx_financeiro_vencimento")
+  @@map("financeiro_transacoes")
+}
+
+model FinanceiroBaixa {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transacaoId    String               @map("transacao_id") @db.Uuid
+  valorPago      Decimal              @map("valor_pago") @db.Decimal(12, 2)
+  dataPagamento  DateTime             @default(now()) @map("data_pagamento")
+  meioPagamento  String?              @map("meio_pagamento") @db.VarChar(50)
+  comprovanteUrl String?              @map("comprovante_url")
+  observacao     String?
+
+  transacao      FinanceiroTransacao  @relation(fields: [transacaoId], references: [id], onDelete: Cascade)
+
+  @@index([transacaoId], map: "idx_baixa_transacao")
+  @@map("financeiro_baixas")
+}

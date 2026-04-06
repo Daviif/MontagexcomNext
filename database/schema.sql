@@ -1,253 +1,375 @@
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
+E o banco dessa forma:
+-- =========================
+-- EXTENSÕES
+-- =========================
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TABLE public.clientes_particulares (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nome character varying NOT NULL,
-  telefone character varying,
-  endereco text,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT clientes_particulares_pkey PRIMARY KEY (id)
+-- =========================
+-- TABELA CENTRAL (PESSOAS)
+-- =========================
+CREATE TABLE pessoas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tipo_pessoa VARCHAR(20) NOT NULL,
+    nome_razao_social VARCHAR(255) NOT NULL,
+    apelido_fantasia VARCHAR(255),
+    documento VARCHAR(20) UNIQUE,
+    email VARCHAR(255),
+    telefone VARCHAR(20),
+    ativo BOOLEAN DEFAULT TRUE,
+    deleted_at TIMESTAMP DEFAULT NULL,  -- soft delete
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    CONSTRAINT check_tipo_pessoa
+        CHECK (tipo_pessoa IN ('USUARIO','LOJA','CLIENTE_FINAL'))
 );
-CREATE TABLE public.configuracoes (
-  id integer NOT NULL DEFAULT nextval('configuracoes_id_seq'::regclass),
-  chave character varying NOT NULL UNIQUE,
-  valor text,
-  descricao text,
-  tipo character varying,
-  updated_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT configuracoes_pkey PRIMARY KEY (id)
+
+-- =========================
+-- ENDEREÇOS (NORMALIZADO)
+-- =========================
+CREATE TABLE enderecos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pessoa_id UUID NOT NULL REFERENCES pessoas(id) ON DELETE CASCADE,
+    rua VARCHAR(255),
+    numero VARCHAR(20),
+    complemento VARCHAR(100),
+    bairro VARCHAR(100),
+    cidade VARCHAR(100),
+    estado VARCHAR(50),
+    cep VARCHAR(20),
+    latitude NUMERIC(10,7),
+    longitude NUMERIC(10,7),
+    deleted_at TIMESTAMP DEFAULT NULL,  -- soft delete
+    created_at TIMESTAMP DEFAULT NOW()
 );
-CREATE TABLE public.despesas (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  descricao text NOT NULL,
-  categoria character varying,
-  valor numeric NOT NULL,
-  data_despesa date NOT NULL,
-  responsavel_id uuid,
-  servico_id uuid,
-  CONSTRAINT despesas_pkey PRIMARY KEY (id),
-  CONSTRAINT despesas_responsavel_id_fkey FOREIGN KEY (responsavel_id) REFERENCES public.usuarios(id)
+
+CREATE INDEX idx_endereco_pessoa ON enderecos(pessoa_id);
+CREATE INDEX idx_endereco_cidade ON enderecos(cidade);
+
+-- =========================
+-- COLABORADORES
+-- Constraint garante que apenas pessoas do tipo USUARIO
+-- podem ter registro nesta tabela (via trigger abaixo)
+-- =========================
+CREATE TABLE colaboradores_info (
+    pessoa_id UUID PRIMARY KEY REFERENCES pessoas(id) ON DELETE CASCADE,
+    tipo_colaborador VARCHAR(20),
+    senha_hash TEXT NOT NULL,
+    chave_pix VARCHAR(100),
+    comissao_padrao NUMERIC(5,2) DEFAULT 50.00,
+    meta_mensal NUMERIC(12,2) DEFAULT 0,
+
+    CONSTRAINT check_tipo_colaborador
+        CHECK (tipo_colaborador IN ('ADMIN','MONTADOR')),
+    CONSTRAINT check_comissao_range
+        CHECK (comissao_padrao BETWEEN 0 AND 100)
 );
-CREATE TABLE public.equipe_membros (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  equipe_id uuid NOT NULL,
-  usuario_id uuid NOT NULL,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT equipe_membros_pkey PRIMARY KEY (id),
-  CONSTRAINT equipe_membros_equipe_id_fkey FOREIGN KEY (equipe_id) REFERENCES public.equipes(id),
-  CONSTRAINT equipe_membros_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+
+-- Trigger: impede que LOJA ou CLIENTE_FINAL virem colaboradores
+CREATE OR REPLACE FUNCTION fn_valida_tipo_colaborador()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (SELECT tipo_pessoa FROM pessoas WHERE id = NEW.pessoa_id) <> 'USUARIO' THEN
+        RAISE EXCEPTION 'Apenas pessoas do tipo USUARIO podem ser colaboradores.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_valida_tipo_colaborador
+    BEFORE INSERT OR UPDATE ON colaboradores_info
+    FOR EACH ROW EXECUTE FUNCTION fn_valida_tipo_colaborador();
+
+-- =========================
+-- PRODUTOS
+-- =========================
+CREATE TABLE produtos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    loja_id UUID NOT NULL REFERENCES pessoas(id),
+    sku_externo VARCHAR(50),
+    nome VARCHAR(255) NOT NULL,
+    valor_montagem_base NUMERIC(12,2) NOT NULL CHECK (valor_montagem_base >= 0),
+    tempo_estimado_minutos INTEGER DEFAULT 60 CHECK (tempo_estimado_minutos > 0),
+    deleted_at TIMESTAMP DEFAULT NULL,  -- soft delete
+    created_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(loja_id, sku_externo)
 );
-CREATE TABLE public.equipes (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nome character varying NOT NULL,
-  ativa boolean DEFAULT true,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT equipes_pkey PRIMARY KEY (id)
+
+CREATE INDEX idx_produto_loja ON produtos(loja_id);
+
+-- Trigger: impede que um não-LOJA seja referenciado como loja_id
+CREATE OR REPLACE FUNCTION fn_valida_loja_produto()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (SELECT tipo_pessoa FROM pessoas WHERE id = NEW.loja_id) <> 'LOJA' THEN
+        RAISE EXCEPTION 'O campo loja_id deve referenciar uma pessoa do tipo LOJA.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_valida_loja_produto
+    BEFORE INSERT OR UPDATE ON produtos
+    FOR EACH ROW EXECUTE FUNCTION fn_valida_loja_produto();
+
+-- =========================
+-- ORDENS DE SERVIÇO
+-- =========================
+CREATE TABLE ordens_servico (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    codigo_rastreio VARCHAR(20) UNIQUE NOT NULL DEFAULT 'OS-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || UPPER(SUBSTRING(gen_random_uuid()::TEXT, 1, 6)),
+
+    loja_origem_id UUID REFERENCES pessoas(id),
+    cliente_destino_id UUID NOT NULL REFERENCES pessoas(id),
+
+    -- Snapshot do endereço no momento da criação da OS
+    endereco_execucao_id UUID REFERENCES enderecos(id),
+
+    status_fluxo VARCHAR(30) DEFAULT 'RASCUNHO',
+    data_programada TIMESTAMP,
+
+    valor_venda_total NUMERIC(12,2) DEFAULT 0 CHECK (valor_venda_total >= 0),
+    valor_custo_montagem NUMERIC(12,2) DEFAULT 0 CHECK (valor_custo_montagem >= 0),
+
+    observacoes TEXT,
+
+    deleted_at TIMESTAMP DEFAULT NULL,  -- soft delete
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    CONSTRAINT check_status_fluxo
+        CHECK (status_fluxo IN (
+            'RASCUNHO',
+            'AGENDADO',
+            'EM_DESLOCAMENTO',
+            'EXECUCAO',
+            'CONCLUIDO',
+            'CANCELADO'
+        ))
 );
-CREATE TABLE public.lojas (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  telefone character varying,
-  email character varying,
-  endereco text,
-  prazo_pagamento_dias integer,
-  usa_porcentagem boolean DEFAULT false,
-  porcentagem_repasse numeric,
-  observacoes_pagamento text,
-  created_at timestamp without time zone DEFAULT now(),
-  cnpj character varying,
-  razao_social character varying,
-  nome_fantasia character varying,
-  CONSTRAINT lojas_pkey PRIMARY KEY (id)
+
+CREATE INDEX idx_os_cliente ON ordens_servico(cliente_destino_id);
+CREATE INDEX idx_os_status ON ordens_servico(status_fluxo);
+CREATE INDEX idx_os_loja ON ordens_servico(loja_origem_id);
+
+-- Trigger: garante que loja_origem_id seja do tipo LOJA
+CREATE OR REPLACE FUNCTION fn_valida_loja_os()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.loja_origem_id IS NOT NULL THEN
+        IF (SELECT tipo_pessoa FROM pessoas WHERE id = NEW.loja_origem_id) <> 'LOJA' THEN
+            RAISE EXCEPTION 'loja_origem_id deve referenciar uma pessoa do tipo LOJA.';
+        END IF;
+    END IF;
+
+    -- Garante que o cliente destino seja do tipo CLIENTE_FINAL
+    IF (SELECT tipo_pessoa FROM pessoas WHERE id = NEW.cliente_destino_id) <> 'CLIENTE_FINAL' THEN
+        RAISE EXCEPTION 'cliente_destino_id deve referenciar uma pessoa do tipo CLIENTE_FINAL.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_valida_loja_os
+    BEFORE INSERT OR UPDATE ON ordens_servico
+    FOR EACH ROW EXECUTE FUNCTION fn_valida_loja_os();
+
+-- =========================
+-- HISTÓRICO DE STATUS DA OS
+-- Registra toda transição de status com quem alterou e quando
+-- =========================
+CREATE TABLE os_historico_status (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    os_id UUID NOT NULL REFERENCES ordens_servico(id) ON DELETE CASCADE,
+    status_anterior VARCHAR(30),
+    status_novo VARCHAR(30) NOT NULL,
+    alterado_por UUID REFERENCES pessoas(id),
+    alterado_em TIMESTAMP DEFAULT NOW(),
+    observacao TEXT
 );
-CREATE TABLE public.pagamento_funcionario_anexos (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  pagamento_funcionario_id uuid NOT NULL,
-  nome_arquivo character varying NOT NULL,
-  extensao character varying,
-  tipo_mime character varying,
-  tamanho_bytes bigint,
-  caminho_arquivo text NOT NULL,
-  descricao text,
-  criado_em timestamp without time zone DEFAULT now(),
-  criado_por uuid,
-  CONSTRAINT pagamento_funcionario_anexos_pkey PRIMARY KEY (id),
-  CONSTRAINT pagamento_funcionario_anexos_pagamento_funcionario_id_fkey FOREIGN KEY (pagamento_funcionario_id) REFERENCES public.pagamentos_funcionarios(id),
-  CONSTRAINT pagamento_funcionario_anexos_criado_por_fkey FOREIGN KEY (criado_por) REFERENCES public.usuarios(id)
+
+CREATE INDEX idx_historico_os ON os_historico_status(os_id);
+CREATE INDEX idx_historico_data ON os_historico_status(alterado_em);
+
+-- Trigger: grava automaticamente o histórico a cada mudança de status
+CREATE OR REPLACE FUNCTION fn_registra_historico_status()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (TG_OP = 'INSERT') OR (OLD.status_fluxo IS DISTINCT FROM NEW.status_fluxo) THEN
+        INSERT INTO os_historico_status (os_id, status_anterior, status_novo)
+        VALUES (
+            NEW.id,
+            CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE OLD.status_fluxo END,
+            NEW.status_fluxo
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_historico_status_os
+    AFTER INSERT OR UPDATE ON ordens_servico
+    FOR EACH ROW EXECUTE FUNCTION fn_registra_historico_status();
+
+-- =========================
+-- ITENS DA OS
+-- =========================
+CREATE TABLE os_itens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    os_id UUID NOT NULL REFERENCES ordens_servico(id) ON DELETE CASCADE,
+    produto_id UUID REFERENCES produtos(id),
+    descricao_manual TEXT,
+    quantidade INTEGER NOT NULL CHECK (quantidade > 0),
+    valor_unitario_na_data NUMERIC(12,2) NOT NULL CHECK (valor_unitario_na_data >= 0),
+
+    -- Pelo menos um dos dois deve estar preenchido
+    CONSTRAINT check_produto_ou_descricao
+        CHECK (produto_id IS NOT NULL OR descricao_manual IS NOT NULL)
 );
-CREATE TABLE public.pagamentos_funcionarios (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  usuario_id uuid NOT NULL,
-  servico_id uuid NOT NULL,
-  valor numeric NOT NULL,
-  data_pagamento date,
-  status character varying,
-  categoria character varying DEFAULT 'salario'::character varying,
-  origem character varying DEFAULT 'servico'::character varying,
-  valor_pago numeric DEFAULT 0,
-  data_vencimento date,
-  observacoes text,
-  responsavel_id uuid,
-  CONSTRAINT pagamentos_funcionarios_pkey PRIMARY KEY (id),
-  CONSTRAINT pagamentos_funcionarios_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id),
-  CONSTRAINT pagamentos_funcionarios_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),
-  CONSTRAINT pagamentos_funcionarios_responsavel_id_fkey FOREIGN KEY (responsavel_id) REFERENCES public.usuarios(id)
+
+CREATE INDEX idx_itens_os ON os_itens(os_id);
+
+-- =========================
+-- EXECUTORES
+-- =========================
+CREATE TABLE os_executores (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    os_id UUID NOT NULL REFERENCES ordens_servico(id) ON DELETE CASCADE,
+    colaborador_id UUID NOT NULL REFERENCES pessoas(id),
+    percentual_participacao NUMERIC(5,2) DEFAULT 100.00,
+    valor_comissao_final NUMERIC(12,2),
+    eh_responsavel BOOLEAN DEFAULT FALSE,
+
+    CONSTRAINT check_percentual_range
+        CHECK (percentual_participacao BETWEEN 0 AND 100),
+
+    UNIQUE(os_id, colaborador_id)
 );
-CREATE TABLE public.pagamentos_funcionarios_baixas (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  pagamento_funcionario_id uuid NOT NULL,
-  valor numeric NOT NULL CHECK (valor > 0::numeric),
-  data_pagamento date NOT NULL,
-  forma_pagamento character varying,
-  observacoes text,
-  responsavel_id uuid,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT pagamentos_funcionarios_baixas_pkey PRIMARY KEY (id),
-  CONSTRAINT pagamentos_funcionarios_baixas_pagamento_funcionario_id_fkey FOREIGN KEY (pagamento_funcionario_id) REFERENCES public.pagamentos_funcionarios(id),
-  CONSTRAINT pagamentos_funcionarios_baixas_responsavel_id_fkey FOREIGN KEY (responsavel_id) REFERENCES public.usuarios(id)
+
+CREATE INDEX idx_exec_os ON os_executores(os_id);
+
+-- Trigger: impede que um não-USUARIO (colaborador) seja executor
+CREATE OR REPLACE FUNCTION fn_valida_executor_colaborador()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (SELECT tipo_pessoa FROM pessoas WHERE id = NEW.colaborador_id) <> 'USUARIO' THEN
+        RAISE EXCEPTION 'Apenas pessoas do tipo USUARIO podem ser executores de uma OS.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_valida_executor_colaborador
+    BEFORE INSERT OR UPDATE ON os_executores
+    FOR EACH ROW EXECUTE FUNCTION fn_valida_executor_colaborador();
+
+-- =========================
+-- FINANCEIRO (TRANSAÇÕES)
+-- =========================
+CREATE TABLE financeiro_transacoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    os_id UUID REFERENCES ordens_servico(id),
+    pessoa_id UUID NOT NULL REFERENCES pessoas(id),
+
+    tipo_transacao VARCHAR(10),
+    categoria VARCHAR(50),
+    descricao TEXT,  -- campo livre para descrever a transação
+
+    valor_total NUMERIC(12,2) NOT NULL CHECK (valor_total > 0),
+    data_vencimento DATE NOT NULL,
+
+    status_pagamento VARCHAR(20) DEFAULT 'ABERTO',
+
+    deleted_at TIMESTAMP DEFAULT NULL,  -- soft delete
+    created_at TIMESTAMP DEFAULT NOW(),
+
+    CONSTRAINT check_tipo_transacao
+        CHECK (tipo_transacao IN ('ENTRADA','SAIDA')),
+
+    CONSTRAINT check_status_pagamento
+        CHECK (status_pagamento IN ('ABERTO','PARCIAL','LIQUIDADO','CANCELADO'))
 );
-CREATE TABLE public.produtos (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nome character varying NOT NULL,
-  valor_base numeric,
-  tempo_base_min integer NOT NULL,
-  ativo boolean DEFAULT true,
-  created_at timestamp without time zone DEFAULT now(),
-  loja_id uuid,
-  categoria character varying,
-  codigo integer NOT NULL DEFAULT nextval('produtos_codigo_seq'::regclass),
-  CONSTRAINT produtos_pkey PRIMARY KEY (id),
-  CONSTRAINT produtos_loja_id_fkey FOREIGN KEY (loja_id) REFERENCES public.lojas(id)
+
+CREATE INDEX idx_financeiro_pessoa ON financeiro_transacoes(pessoa_id);
+CREATE INDEX idx_financeiro_status ON financeiro_transacoes(status_pagamento);
+CREATE INDEX idx_financeiro_os ON financeiro_transacoes(os_id);
+CREATE INDEX idx_financeiro_vencimento ON financeiro_transacoes(data_vencimento);
+
+-- =========================
+-- BAIXAS (PAGAMENTOS)
+-- =========================
+CREATE TABLE financeiro_baixas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transacao_id UUID NOT NULL REFERENCES financeiro_transacoes(id) ON DELETE CASCADE,
+    valor_pago NUMERIC(12,2) NOT NULL CHECK (valor_pago > 0),
+    data_pagamento TIMESTAMP DEFAULT NOW(),
+    meio_pagamento VARCHAR(50),
+    comprovante_url TEXT,
+    observacao TEXT
 );
-CREATE TABLE public.recebimentos (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  servico_id uuid NOT NULL,
-  valor numeric NOT NULL,
-  data_prevista date,
-  data_recebimento date,
-  status character varying CHECK (status::text = ANY (ARRAY['pendente'::character varying::text, 'recebido'::character varying::text])),
-  forma_pagamento character varying,
-  observacoes text,
-  CONSTRAINT recebimentos_pkey PRIMARY KEY (id),
-  CONSTRAINT recebimentos_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id)
-);
-CREATE TABLE public.rota_servicos (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  rota_id uuid NOT NULL,
-  servico_id uuid NOT NULL,
-  ordem integer NOT NULL,
-  horario_previsto_chegada time without time zone,
-  horario_previsto_saida time without time zone,
-  tempo_deslocamento_min integer,
-  tempo_montagem_calculado_min integer,
-  CONSTRAINT rota_servicos_pkey PRIMARY KEY (id),
-  CONSTRAINT rota_servicos_rota_id_fkey FOREIGN KEY (rota_id) REFERENCES public.rotas(id),
-  CONSTRAINT rota_servicos_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id)
-);
-CREATE TABLE public.rotas (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  data date NOT NULL,
-  equipe_id uuid,
-  horario_inicio time without time zone NOT NULL,
-  horario_fim time without time zone NOT NULL,
-  status character varying CHECK (status::text = ANY (ARRAY['planejada'::character varying::text, 'em_andamento'::character varying::text, 'finalizada'::character varying::text])),
-  km_total numeric,
-  tempo_total_min integer,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT rotas_pkey PRIMARY KEY (id),
-  CONSTRAINT rotas_equipe_id_fkey FOREIGN KEY (equipe_id) REFERENCES public.equipes(id)
-);
-CREATE TABLE public.servico_anexos (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  servico_id uuid NOT NULL,
-  nome_arquivo character varying NOT NULL,
-  extensao character varying,
-  tipo_mime character varying,
-  tamanho_bytes bigint,
-  caminho_arquivo text NOT NULL,
-  descricao text,
-  criado_em timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-  criado_por uuid,
-  CONSTRAINT servico_anexos_pkey PRIMARY KEY (id),
-  CONSTRAINT servico_anexos_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id),
-  CONSTRAINT fk_servico_anexos_usuario FOREIGN KEY (criado_por) REFERENCES public.usuarios(id)
-);
-CREATE TABLE public.servico_extras (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  servico_id uuid NOT NULL,
-  descricao character varying NOT NULL,
-  valor numeric NOT NULL DEFAULT 0,
-  observacao text,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT servico_extras_pkey PRIMARY KEY (id),
-  CONSTRAINT servico_extras_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id)
-);
-CREATE TABLE public.servico_montadores (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  servico_id uuid NOT NULL,
-  usuario_id uuid,
-  equipe_id uuid,
-  valor_atribuido numeric NOT NULL,
-  percentual_divisao numeric,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT servico_montadores_pkey PRIMARY KEY (id),
-  CONSTRAINT servico_montadores_equipe_id_fkey FOREIGN KEY (equipe_id) REFERENCES public.equipes(id),
-  CONSTRAINT servico_montadores_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id),
-  CONSTRAINT servico_montadores_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
-);
-CREATE TABLE public.servico_produtos (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  servico_id uuid NOT NULL,
-  produto_id uuid NOT NULL,
-  quantidade integer NOT NULL,
-  valor_unitario numeric,
-  valor_total numeric,
-  utilizar_desconto boolean DEFAULT false,
-  valor_desconto numeric DEFAULT 0,
-  CONSTRAINT servico_produtos_pkey PRIMARY KEY (id),
-  CONSTRAINT servico_produtos_produto_id_fkey FOREIGN KEY (produto_id) REFERENCES public.produtos(id),
-  CONSTRAINT servico_produtos_servico_id_fkey FOREIGN KEY (servico_id) REFERENCES public.servicos(id)
-);
-CREATE TABLE public.servicos (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  data_servico date NOT NULL,
-  tipo_cliente character varying CHECK (tipo_cliente::text = ANY (ARRAY['loja'::character varying::text, 'particular'::character varying::text])),
-  loja_id uuid,
-  cliente_particular_id uuid,
-  endereco_execucao text NOT NULL,
-  latitude numeric,
-  longitude numeric,
-  prioridade character varying DEFAULT 0,
-  janela_inicio time without time zone,
-  janela_fim time without time zone,
-  valor_total numeric,
-  valor_repasse_montagem numeric,
-  status character varying CHECK (status::text = ANY (ARRAY['agendada'::character varying, 'agendado'::character varying, 'em_rota'::character varying, 'concluido'::character varying, 'cancelado'::character varying]::text[])),
-  observacoes text,
-  created_at timestamp without time zone DEFAULT now(),
-  updated_at timestamp without time zone,
-  cliente_final_nome text,
-  cliente_final_contato character varying,
-  codigo_os_loja character varying,
-  CONSTRAINT servicos_pkey PRIMARY KEY (id),
-  CONSTRAINT servicos_cliente_particular_id_fkey FOREIGN KEY (cliente_particular_id) REFERENCES public.clientes_particulares(id),
-  CONSTRAINT servicos_loja_id_fkey FOREIGN KEY (loja_id) REFERENCES public.lojas(id)
-);
-CREATE TABLE public.usuarios (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nome character varying NOT NULL,
-  email character varying UNIQUE,
-  senha_hash text,
-  tipo character varying CHECK (tipo::text = ANY (ARRAY['admin'::character varying::text, 'montador'::character varying::text])),
-  ativo boolean DEFAULT true,
-  created_at timestamp without time zone DEFAULT now(),
-  updated_at timestamp without time zone,
-  foto_perfil text,
-  chave_pix text,
-  data_nascimento date,
-  habilitacao text,
-  meta_mensal numeric,
-  percentual_salario numeric DEFAULT 50,
-  Telefone character varying,
-  CONSTRAINT usuarios_pkey PRIMARY KEY (id)
-);
+
+CREATE INDEX idx_baixa_transacao ON financeiro_baixas(transacao_id);
+
+-- Trigger: atualiza status_pagamento da transação após cada baixa
+CREATE OR REPLACE FUNCTION fn_atualiza_status_transacao()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_total NUMERIC(12,2);
+	v_pago NUMERIC(12,2);
+	v_transacao_id UUID;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		v_transacao_id := OLD.transacao_id;
+	ELSE
+		v_transacao_id := NEW.transacao_id;
+	END IF;
+
+    SELECT valor_total INTO v_total
+    FROM financeiro_transacoes
+	WHERE id = v_transacao_id;
+
+    SELECT COALESCE(SUM(valor_pago), 0) INTO v_pago
+    FROM financeiro_baixas
+	WHERE transacao_id = v_transacao_id;
+
+    UPDATE financeiro_transacoes
+    SET status_pagamento = CASE
+        WHEN v_pago <= 0       THEN 'ABERTO'
+        WHEN v_pago >= v_total THEN 'LIQUIDADO'
+        ELSE 'PARCIAL'
+    END
+	WHERE id = v_transacao_id;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	END IF;
+
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_atualiza_status_transacao
+    AFTER INSERT OR DELETE ON financeiro_baixas
+    FOR EACH ROW EXECUTE FUNCTION fn_atualiza_status_transacao();
+
+-- =========================
+-- updated_at AUTOMÁTICO
+-- Aplica a todas as tabelas com coluna updated_at
+-- =========================
+CREATE OR REPLACE FUNCTION fn_set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_pessoas_updated_at
+    BEFORE UPDATE ON pessoas
+    FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
+
+CREATE TRIGGER trg_os_updated_at
+    BEFORE UPDATE ON ordens_servico
+    FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
